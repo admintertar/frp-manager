@@ -20,6 +20,7 @@
     "test:proxy-types": "node test/proxy-type-options.test.mjs",
     "test:remote": "node test/remote-display.test.mjs",
     "test:profile-sync": "node test/profile-state-sync.test.mjs",
+    "test:sidebar-style": "node test/sidebar-runtime-style.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

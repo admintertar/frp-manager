@@ -38,3 +38,14 @@ test("proxy editor uses a custom type control instead of native select", async (
   assert.doesNotMatch(source, /<select[\s>]/);
   assert.match(source, /className="proxy-type-options"/);
 });
+
+test("selected proxy type has a colored selected state", async () => {
+  const css = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
+  const selectedBlock = css.match(
+    /\.proxy-type-option\.selected\s*\{(?<body>[\s\S]*?)\}/,
+  )?.groups?.body;
+
+  assert.ok(selectedBlock, "expected selected proxy type CSS block");
+  assert.match(selectedBlock, /background:\s*var\(--blue\)/);
+  assert.match(selectedBlock, /color:\s*#ffffff/);
+});
