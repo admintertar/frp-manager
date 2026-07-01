@@ -1,0 +1,43 @@
+{
+  "name": "frp-manager",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "test:app-name": "node test/app-name.test.mjs",
+    "test:focus": "node test/modal-focus.test.mjs",
+    "test:icon": "node test/app-icon.test.mjs",
+    "test:layout": "node test/proxy-table-layout.test.mjs",
+    "test:profile-sidebar": "node test/profile-sidebar-actions.test.mjs",
+    "test:profile-actions": "node test/profile-action-state.test.mjs",
+    "test:tray-menu": "node test/tray-menu.test.mjs",
+    "test:workbench-loading": "node test/profile-workbench-loading.test.mjs",
+    "test:window-lifecycle": "node test/window-lifecycle.test.mjs",
+    "test:proxy-types": "node test/proxy-type-options.test.mjs",
+    "test:remote": "node test/remote-display.test.mjs",
+    "test:profile-sync": "node test/profile-state-sync.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-shell": "^2.3.5",
+    "lucide-react": "^1.22.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "typescript": "~5.8.3",
+    "vite": "^7.3.6"
+  },
+  "packageManager": "pnpm@11.7.0"
+}
