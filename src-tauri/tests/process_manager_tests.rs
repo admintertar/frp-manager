@@ -178,6 +178,47 @@ sleep 30
 }
 
 #[tokio::test]
+async fn stop_all_stops_every_running_process() {
+    let dir = tempdir().unwrap();
+    let fake = dir.path().join("fake-frpc");
+    write_executable(
+        &fake,
+        r#"#!/bin/sh
+touch "$2.started"
+sleep 30
+"#,
+    );
+    let config_a = dir.path().join("profile-a.toml");
+    let config_b = dir.path().join("profile-b.toml");
+    fs::write(
+        &config_a,
+        "serverAddr = \"example.com\"\nserverPort = 7000\n",
+    )
+    .unwrap();
+    fs::write(
+        &config_b,
+        "serverAddr = \"example.com\"\nserverPort = 7000\n",
+    )
+    .unwrap();
+
+    let mut registry = ProcessRegistry::default();
+    registry
+        .start("profile-a", &fake, &config_a, dir.path())
+        .await
+        .unwrap();
+    registry
+        .start("profile-b", &fake, &config_b, dir.path())
+        .await
+        .unwrap();
+
+    assert_eq!(registry.running_count(), 2);
+    registry.stop_all().await.unwrap();
+    assert_eq!(registry.running_count(), 0);
+    assert_eq!(registry.state("profile-a"), ProfileProcessState::Stopped);
+    assert_eq!(registry.state("profile-b"), ProfileProcessState::Stopped);
+}
+
+#[tokio::test]
 async fn refresh_state_marks_later_exited_process_as_failed() {
     let dir = tempdir().unwrap();
     let fake = dir.path().join("fake-frpc");

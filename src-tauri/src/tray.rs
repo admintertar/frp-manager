@@ -53,6 +53,21 @@ pub async fn sync_profile_state(app: &AppHandle) {
     let _ = app.emit(PROFILE_STATE_CHANGED_EVENT, ());
 }
 
+pub fn quit_app(app: &AppHandle, exit_code: i32) {
+    let state = app.state::<AppState>().inner().clone();
+    if !state.request_exit() {
+        return;
+    }
+
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(err) = state.registry.write().await.stop_all().await {
+            eprintln!("failed to stop frpc processes before exit: {err}");
+        }
+        app.exit(exit_code);
+    });
+}
+
 pub fn show_main_window(app: &AppHandle) {
     #[cfg(target_os = "macos")]
     let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
@@ -242,7 +257,7 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
     match id {
         "open" => show_main_window(app),
         "check_update" => show_main_window(app),
-        "quit" => app.exit(0),
+        "quit" => quit_app(app, 0),
         _ if id.starts_with("start-profile:") => {
             if let Some(profile_id) =
                 decode_menu_id_segment(id.trim_start_matches("start-profile:"))

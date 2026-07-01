@@ -65,6 +65,7 @@ impl ProcessRegistry {
             .current_dir(working_dir)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .kill_on_drop(true)
             .spawn()?;
         let stdout_drain = child
             .stdout
@@ -132,6 +133,24 @@ impl ProcessRegistry {
             abort_pipe_drain(managed.stderr_drain);
         }
         Ok(())
+    }
+
+    pub async fn stop_all(&mut self) -> AppResult<()> {
+        let profile_ids = self.processes.keys().cloned().collect::<Vec<_>>();
+        let mut first_error = None;
+
+        for profile_id in profile_ids {
+            if let Err(err) = self.stop(&profile_id).await {
+                if first_error.is_none() {
+                    first_error = Some(err);
+                }
+            }
+        }
+
+        match first_error {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
     }
 
     pub async fn restart(

@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -11,6 +12,7 @@ use crate::runtime_manager::RuntimeManager;
 pub struct AppState {
     pub data_dir: PathBuf,
     pub registry: Arc<RwLock<ProcessRegistry>>,
+    exit_requested: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -18,7 +20,16 @@ impl AppState {
         Self {
             data_dir,
             registry: Arc::new(RwLock::new(ProcessRegistry::default())),
+            exit_requested: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    pub fn request_exit(&self) -> bool {
+        !self.exit_requested.swap(true, Ordering::SeqCst)
+    }
+
+    pub fn is_exiting(&self) -> bool {
+        self.exit_requested.load(Ordering::SeqCst)
     }
 
     pub fn profile_store(&self) -> ProfileStore {

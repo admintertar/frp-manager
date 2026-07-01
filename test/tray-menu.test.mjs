@@ -14,6 +14,10 @@ test("status bar menu exposes profile and proxy quick actions", async () => {
   assert.match(tray, /toggle-proxy:/);
   assert.match(tray, /start-profile:/);
   assert.match(tray, /stop-profile:/);
+  assert.match(tray, /"quit" => quit_app\(app, 0\)/);
+  assert.doesNotMatch(tray, /"quit" => app\.exit\(0\)/);
+  assert.match(tray, /pub fn quit_app/);
+  assert.match(tray, /stop_all\(\)\.await/);
   assert.match(tray, /refresh_menu/);
   assert.match(tray, /list_profiles_with_runtime_state/);
   assert.match(tray, /start_profile_by_id/);

@@ -62,14 +62,20 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while running FRP Manager");
 
-    app.run(|app, event| {
+    app.run(|app, event| match event {
+        tauri::RunEvent::ExitRequested { api, code, .. } => {
+            if !app.state::<AppState>().inner().is_exiting() {
+                api.prevent_exit();
+                tray::quit_app(app, code.unwrap_or(0));
+            }
+        }
         #[cfg(target_os = "macos")]
-        if let tauri::RunEvent::Reopen {
+        tauri::RunEvent::Reopen {
             has_visible_windows: false,
             ..
-        } = event
-        {
+        } => {
             tray::show_main_window(app);
         }
+        _ => {}
     });
 }
