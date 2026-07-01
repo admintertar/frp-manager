@@ -1,9 +1,10 @@
 use std::fs;
 use std::time::Duration;
 
+use frp_manager_lib::app_state::AppState;
 use frp_manager_lib::commands::{
-    append_proxy_toml, bundled_frpc_fallback_path, clean_log_output, create_profile_toml,
-    delete_proxy_toml, list_profiles_with_runtime_state, profile_log_path, update_profile_toml,
+    append_proxy_toml, clean_log_output, create_profile_toml, delete_proxy_toml,
+    list_profiles_with_runtime_state, profile_log_path, start_profile_by_id, update_profile_toml,
     update_proxy_toml, AddProxyInput, AuthMethodInput, CreateProfileInput,
 };
 use frp_manager_lib::config_toml::parse_profile_toml;
@@ -62,15 +63,19 @@ fn clean_log_output_strips_ansi_color_sequences() {
     assert_eq!(cleaned, "2026-07-01 17:51:43.499 [I] connected\nplain");
 }
 
-#[test]
-fn bundled_frpc_fallback_uses_tauri_sidecar_name() {
+#[tokio::test]
+async fn start_profile_requires_managed_runtime() {
     let dir = tempdir().unwrap();
-    let executable = dir.path().join("desktop");
-    fs::write(&executable, "").unwrap();
+    let state = AppState::new(dir.path().to_path_buf());
+    state
+        .profile_store()
+        .import_from_text("prod", "serverAddr = \"example.com\"\nserverPort = 7000\n")
+        .unwrap();
 
-    let path = bundled_frpc_fallback_path(&executable).unwrap();
+    let err = start_profile_by_id(&state, "prod").await.unwrap_err();
 
-    assert_eq!(path, dir.path().join("frpc"));
+    assert!(matches!(err, AppError::Runtime(_)));
+    assert!(err.to_string().contains("frpc runtime is not installed"));
 }
 
 #[test]

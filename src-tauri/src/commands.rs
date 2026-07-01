@@ -8,11 +8,13 @@ use toml_edit::{value, ArrayOfTables, DocumentMut, Item, Table};
 use crate::app_state::AppState;
 use crate::config_toml::{parse_profile_toml, set_proxy_enabled};
 use crate::error::{AppError, AppResult};
-use crate::github_release::{fetch_latest_release, select_platform_asset};
+use crate::github_release::{
+    download_url, select_checksums_asset, select_platform_asset, verify_asset_checksum,
+};
 use crate::models::{Profile, ProfileSummary, ProxyType, RuntimeState};
 use crate::process_manager::{ProcessRegistry, ProfileProcessState};
 use crate::profile_store::ProfileStore;
-use crate::runtime_manager::{current_platform, RuntimeUpdateCheck};
+use crate::runtime_manager::{current_platform, RuntimeStatus, RuntimeUpdateCheck};
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -292,19 +294,50 @@ pub async fn get_runtime_info(state: State<'_, AppState>) -> AppResult<String> {
 }
 
 #[tauri::command]
+pub async fn get_runtime_status(state: State<'_, AppState>) -> AppResult<RuntimeStatus> {
+    state.runtime_manager().runtime_status()
+}
+
+#[tauri::command]
 pub async fn check_runtime_update(state: State<'_, AppState>) -> AppResult<RuntimeUpdateCheck> {
-    let current_version = state.runtime_manager().current_runtime_version()?;
-    let release = fetch_latest_release().await?;
+    let runtime = state.runtime_manager();
+    let status = runtime.runtime_status()?;
+    let release = runtime.latest_release().await?.release;
     let latest_version = release.tag_name.trim_start_matches('v').to_string();
     let (os, arch) = current_platform();
     let asset = select_platform_asset(&latest_version, os, arch, &release.assets)?;
 
     Ok(RuntimeUpdateCheck {
-        update_available: latest_version != current_version,
-        current_version,
+        update_available: status.current_version.as_ref() != Some(&latest_version),
+        current_version: status.current_version,
         latest_version,
         asset_name: Some(asset.name),
+        installed: status.installed,
+        runtime_path: status.runtime_path,
+        platform: status.platform,
     })
+}
+
+#[tauri::command]
+pub async fn install_runtime(state: State<'_, AppState>) -> AppResult<RuntimeStatus> {
+    if state.registry.read().await.running_count() > 0 {
+        return Err(AppError::Runtime(
+            "Stop running profiles before updating frpc runtime.".into(),
+        ));
+    }
+
+    let runtime = state.runtime_manager();
+    let release = runtime.latest_release().await?.release;
+    let latest_version = release.tag_name.trim_start_matches('v').to_string();
+    let (os, arch) = current_platform();
+    let asset = select_platform_asset(&latest_version, os, arch, &release.assets)?;
+    let checksums_asset = select_checksums_asset(&release.assets)?;
+    let archive_bytes = download_url(&asset.browser_download_url).await?;
+    let checksum_bytes = download_url(&checksums_asset.browser_download_url).await?;
+    let checksums = String::from_utf8(checksum_bytes)
+        .map_err(|err| AppError::Update(format!("invalid checksum file: {err}")))?;
+    verify_asset_checksum(&asset.name, &archive_bytes, &checksums)?;
+    runtime.install_runtime_archive(&latest_version, os, arch, &asset.name, &archive_bytes)
 }
 
 pub fn create_profile_toml(input: &CreateProfileInput) -> AppResult<String> {
@@ -472,13 +505,6 @@ pub fn clean_log_output(input: &str) -> String {
     output
 }
 
-pub fn bundled_frpc_fallback_path(current_exe: &Path) -> AppResult<PathBuf> {
-    let parent = current_exe.parent().ok_or_else(|| {
-        crate::error::AppError::Runtime("current executable has no parent".into())
-    })?;
-    Ok(parent.join("frpc"))
-}
-
 struct ProfileLaunchConfig {
     executable: PathBuf,
     config_path: PathBuf,
@@ -494,14 +520,7 @@ fn profile_launch_config(state: &AppState, profile_id: &str) -> AppResult<Profil
         .expect("profile TOML has parent directory")
         .to_path_buf();
     let runtime = state.runtime_manager();
-    let (os, arch) = current_platform();
-    let frpc_path = runtime.runtime_info_for_version("0.69.1", os, arch).path;
-    let fallback_sidecar = bundled_frpc_fallback_path(&std::env::current_exe()?)?;
-    let executable = if frpc_path.exists() {
-        frpc_path
-    } else {
-        fallback_sidecar
-    };
+    let executable = runtime.installed_runtime_path()?;
 
     Ok(ProfileLaunchConfig {
         executable,

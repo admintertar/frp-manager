@@ -890,6 +890,12 @@ button {
   color: var(--amber);
 }
 
+.runtime-status-missing {
+  background: var(--red-soft);
+  border-color: #e0aaa0;
+  color: var(--red);
+}
+
 .runtime-result-grid {
   display: grid;
   gap: 10px;

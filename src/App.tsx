@@ -10,7 +10,7 @@ import {
   deleteProfile,
   deleteProxy,
   getProfile,
-  getRuntimeInfo,
+  getRuntimeStatus,
   listenProfileStateChanged,
   listProfiles,
   readProfileLogs,
@@ -26,6 +26,7 @@ import type {
   Profile,
   ProfileSummary,
   ProxyConfig,
+  RuntimeStatus,
   RuntimeState,
   UpdateProxyInput,
   UpdateProfileInput,
@@ -36,7 +37,9 @@ export default function App() {
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
   const [profileDetail, setProfileDetail] = useState<Profile | undefined>();
   const [selectedId, setSelectedId] = useState<string | undefined>();
-  const [runtimeVersion, setRuntimeVersion] = useState("0.69.1");
+  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus>(
+    fallbackRuntimeStatus(),
+  );
   const [importOpen, setImportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [proxyOpen, setProxyOpen] = useState(false);
@@ -59,6 +62,9 @@ export default function App() {
   const currentProfileDetail =
     profileDetail?.id === selected?.id ? profileDetail : undefined;
   const runtimeState: RuntimeState = selected?.runtimeState ?? "stopped";
+  const runtimeLabel = runtimeStatus.installed
+    ? runtimeStatus.currentVersion ?? "installed"
+    : "not installed";
 
   async function fetchProfileDetail(profileId: string) {
     const [profile, logs] = await Promise.all([
@@ -112,7 +118,7 @@ export default function App() {
 
   async function refreshRuntimeInfo() {
     try {
-      setRuntimeVersion(await getRuntimeInfo());
+      setRuntimeStatus(await getRuntimeStatus());
     } catch (err) {
       setError(formatInvokeError(err));
     }
@@ -396,7 +402,7 @@ export default function App() {
       <ProfileSidebar
         profiles={profiles}
         selectedId={selected?.id}
-        runtimeVersion={runtimeVersion}
+        runtimeVersion={runtimeLabel}
         onSelect={handleSelectProfile}
         onEditProfile={(profileId) => void openProfileEditor(profileId)}
         onDeleteProfile={(profileId) => void handleDeleteProfile(profileId)}
@@ -412,6 +418,7 @@ export default function App() {
         runtimeState={runtimeState}
         runtimePid={selected?.runtimePid}
         runtimeStartedAt={selected?.runtimeStartedAt}
+        runtimeInstalled={runtimeStatus.installed}
         logs={profileLogs}
         error={error}
         busyAction={busyAction}
@@ -463,10 +470,25 @@ export default function App() {
       />
       <RuntimeSettings
         open={runtimeOpen}
+        status={runtimeStatus}
         onClose={() => setRuntimeOpen(false)}
+        onStatusChange={setRuntimeStatus}
       />
     </main>
   );
+}
+
+function fallbackRuntimeStatus(): RuntimeStatus {
+  return {
+    installed: false,
+    currentVersion: null,
+    runtimePath: null,
+    platform: {
+      os: "darwin",
+      arch: "arm64",
+      executableName: "frpc",
+    },
+  };
 }
 
 function reconcileSelectedId(

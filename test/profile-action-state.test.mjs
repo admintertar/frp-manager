@@ -32,7 +32,7 @@ test("profile toolbar renders start and stop from runtime state only", async () 
   );
   assert.match(
     workbench,
-    /className="command-button primary"[\s\S]*disabled=\{busy\}[\s\S]*onClick=\{\(\) => void onStart\(activeProfile\.id\)\}[\s\S]*Start/,
+    /className="command-button primary"[\s\S]*disabled=\{busy \|\| !runtimeInstalled\}[\s\S]*onClick=\{\(\) => void onStart\(activeProfile\.id\)\}[\s\S]*Start/,
   );
   assert.match(workbench, /<RotateCw size=\{16\} \/> Reload/);
   assert.doesNotMatch(workbench, /isStartActionComplete/);

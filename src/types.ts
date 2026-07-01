@@ -81,8 +81,24 @@ export interface ProxyConfig {
 }
 
 export interface RuntimeUpdateCheck {
-  currentVersion: string;
+  currentVersion: string | null;
   latestVersion: string;
   updateAvailable: boolean;
   assetName: string | null;
+  installed: boolean;
+  runtimePath: string | null;
+  platform: RuntimePlatform;
+}
+
+export interface RuntimePlatform {
+  os: string;
+  arch: string;
+  executableName: string;
+}
+
+export interface RuntimeStatus {
+  installed: boolean;
+  currentVersion: string | null;
+  runtimePath: string | null;
+  platform: RuntimePlatform;
 }

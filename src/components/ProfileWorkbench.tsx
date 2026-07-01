@@ -9,6 +9,7 @@ interface Props {
   runtimeState: RuntimeState;
   runtimePid?: number | null;
   runtimeStartedAt?: string | null;
+  runtimeInstalled: boolean;
   logs: string;
   error: string | null;
   busyAction?: string | null;
@@ -34,6 +35,7 @@ export function ProfileWorkbench({
   runtimeState,
   runtimePid,
   runtimeStartedAt,
+  runtimeInstalled,
   logs,
   error,
   busyAction,
@@ -95,7 +97,12 @@ export function ProfileWorkbench({
           ) : activeProfile ? (
             <button
               className="command-button primary"
-              disabled={busy}
+              disabled={busy || !runtimeInstalled}
+              title={
+                runtimeInstalled
+                  ? undefined
+                  : "Install frpc runtime before starting profiles"
+              }
               onClick={() => void onStart(activeProfile.id)}
             >
               <Play size={16} /> Start

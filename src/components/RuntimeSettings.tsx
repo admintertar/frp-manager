@@ -1,17 +1,33 @@
-import { AlertCircle, CheckCircle2, RefreshCw, X } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Download,
+  FolderOpen,
+  RefreshCw,
+  X,
+} from "lucide-react";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState } from "react";
-import { checkRuntimeUpdate } from "../lib/api";
-import type { RuntimeUpdateCheck } from "../types";
+import { checkRuntimeUpdate, installRuntime } from "../lib/api";
+import type { RuntimeStatus, RuntimeUpdateCheck } from "../types";
 
 interface Props {
   open: boolean;
+  status: RuntimeStatus;
   onClose: () => void;
+  onStatusChange: (status: RuntimeStatus) => void;
 }
 
-export function RuntimeSettings({ open, onClose }: Props) {
+export function RuntimeSettings({
+  open,
+  status,
+  onClose,
+  onStatusChange,
+}: Props) {
   const [result, setResult] = useState<RuntimeUpdateCheck | null>(null);
+  const [localStatus, setLocalStatus] = useState<RuntimeStatus>(status);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"check" | "install" | "folder" | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
 
@@ -21,6 +37,7 @@ export function RuntimeSettings({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    setLocalStatus(status);
 
     const previouslyFocused =
       document.activeElement instanceof HTMLElement
@@ -43,22 +60,60 @@ export function RuntimeSettings({ open, onClose }: Props) {
 
   async function check() {
     if (busy) return;
-    setBusy(true);
+    setBusy("check");
     setError(null);
     try {
       setResult(await checkRuntimeUpdate());
     } catch (err) {
       setError(formatError(err));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
-  const status = result
+  async function install() {
+    if (busy) return;
+    setBusy("install");
+    setError(null);
+    try {
+      const next = await installRuntime();
+      setLocalStatus(next);
+      onStatusChange(next);
+      setResult(null);
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function openFolder() {
+    if (!localStatus.runtimePath || busy) return;
+    setBusy("folder");
+    setError(null);
+    try {
+      await revealItemInDir(localStatus.runtimePath);
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const installed = localStatus.installed;
+  const statusLabel = result
     ? result.updateAvailable
       ? "Update available"
       : "Runtime is current"
-    : "Ready to check";
+    : installed
+      ? "Runtime installed"
+      : "frpc runtime not installed";
+  const statusClass = !installed
+    ? "runtime-status runtime-status-missing"
+    : result?.updateAvailable
+      ? "runtime-status runtime-status-update"
+      : "runtime-status";
+  const actionLabel = installed ? "Update" : "Download";
 
   return (
     <div className="modal-backdrop">
@@ -86,31 +141,41 @@ export function RuntimeSettings({ open, onClose }: Props) {
 
         {error ? <div className="error-banner">{error}</div> : null}
 
-        <div
-          className={`runtime-status ${
-            result?.updateAvailable ? "runtime-status-update" : ""
-          }`}
-        >
-          {result?.updateAvailable ? (
+        <div className={statusClass}>
+          {!installed || result?.updateAvailable ? (
             <AlertCircle size={18} />
           ) : (
             <CheckCircle2 size={18} />
           )}
-          <strong>{status}</strong>
+          <strong>{statusLabel}</strong>
         </div>
 
         <div className="runtime-result-grid">
           <div>
             <span>Current</span>
-            <strong>{result?.currentVersion ?? "-"}</strong>
+            <strong>
+              {result?.currentVersion ??
+                localStatus.currentVersion ??
+                "not installed"}
+            </strong>
           </div>
           <div>
             <span>Latest</span>
             <strong>{result?.latestVersion ?? "-"}</strong>
           </div>
+          <div>
+            <span>Platform</span>
+            <strong>
+              {localStatus.platform.os} {localStatus.platform.arch}
+            </strong>
+          </div>
           <div className="runtime-asset">
             <span>Asset</span>
             <strong>{result?.assetName ?? "-"}</strong>
+          </div>
+          <div className="runtime-asset">
+            <span>Path</span>
+            <strong>{localStatus.runtimePath ?? "-"}</strong>
           </div>
         </div>
 
@@ -120,12 +185,30 @@ export function RuntimeSettings({ open, onClose }: Props) {
           </button>
           <button
             type="button"
-            className="command-button primary"
-            disabled={busy}
+            className="command-button"
+            disabled={!localStatus.runtimePath || busy !== null}
+            onClick={() => void openFolder()}
+          >
+            <FolderOpen size={16} />
+            Open Folder
+          </button>
+          <button
+            type="button"
+            className="command-button"
+            disabled={busy !== null}
             onClick={() => void check()}
           >
             <RefreshCw size={16} />
-            {busy ? "Checking" : "Check Updates"}
+            {busy === "check" ? "Checking" : "Check Updates"}
+          </button>
+          <button
+            type="button"
+            className="command-button primary"
+            disabled={busy !== null}
+            onClick={() => void install()}
+          >
+            <Download size={16} />
+            {busy === "install" ? "Downloading" : actionLabel}
           </button>
         </div>
       </section>

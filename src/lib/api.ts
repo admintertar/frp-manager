@@ -5,6 +5,7 @@ import type {
   CreateProfileInput,
   Profile,
   ProfileSummary,
+  RuntimeStatus,
   RuntimeUpdateCheck,
   UpdateProxyInput,
   UpdateProfileInput,
@@ -98,16 +99,40 @@ export function readProfileLogs(profileId: string): Promise<string> {
 }
 
 export function getRuntimeInfo(): Promise<string> {
-  return invokeOrFallback("get_runtime_info", undefined, "0.69.1");
+  return invokeOrFallback("get_runtime_info", undefined, "not installed");
+}
+
+export function getRuntimeStatus(): Promise<RuntimeStatus> {
+  return invokeOrFallback("get_runtime_status", undefined, {
+    installed: false,
+    currentVersion: null,
+    runtimePath: null,
+    platform: {
+      os: "darwin",
+      arch: "arm64",
+      executableName: "frpc",
+    },
+  });
 }
 
 export function checkRuntimeUpdate(): Promise<RuntimeUpdateCheck> {
   return invokeOrFallback("check_runtime_update", undefined, {
-    currentVersion: "0.69.1",
+    currentVersion: null,
     latestVersion: "0.69.1",
-    updateAvailable: false,
+    updateAvailable: true,
     assetName: "frp_0.69.1_darwin_arm64.tar.gz",
+    installed: false,
+    runtimePath: null,
+    platform: {
+      os: "darwin",
+      arch: "arm64",
+      executableName: "frpc",
+    },
   });
+}
+
+export function installRuntime(): Promise<RuntimeStatus> {
+  return invokeOrFallback("install_runtime");
 }
 
 function invokeOrFallback<T>(
