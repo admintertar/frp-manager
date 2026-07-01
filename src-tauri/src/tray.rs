@@ -5,12 +5,14 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::app_state::AppState;
 use crate::commands::{list_profiles_with_runtime_state, start_profile_by_id, stop_profile_by_id};
 use crate::models::{Profile, ProfileSummary, ProxyConfig, ProxyType, RuntimeState};
+use crate::profile_store::ProfileStore;
 
 const TRAY_ID: &str = "frp-manager";
 pub const PROFILE_STATE_CHANGED_EVENT: &str = "profile-state-changed";
 
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
-    let menu = build_menu(app)?;
+    let state = app.state::<AppState>().inner().clone();
+    let menu = build_menu(app, load_stored_tray_profiles(&state))?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("FRP Manager")
@@ -37,16 +39,17 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-pub fn refresh_menu(app: &AppHandle) -> tauri::Result<()> {
-    let menu = build_menu(app)?;
+pub async fn refresh_menu(app: &AppHandle) -> tauri::Result<()> {
+    let state = app.state::<AppState>().inner().clone();
+    let menu = build_menu(app, load_tray_profiles(&state).await)?;
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         tray.set_menu(Some(menu))?;
     }
     Ok(())
 }
 
-pub fn sync_profile_state(app: &AppHandle) {
-    let _ = refresh_menu(app);
+pub async fn sync_profile_state(app: &AppHandle) {
+    let _ = refresh_menu(app).await;
     let _ = app.emit(PROFILE_STATE_CHANGED_EVENT, ());
 }
 
@@ -62,13 +65,12 @@ pub fn show_main_window(app: &AppHandle) {
     let _ = app.emit(PROFILE_STATE_CHANGED_EVENT, ());
 }
 
-fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+fn build_menu(app: &AppHandle, profiles: Vec<TrayProfile>) -> tauri::Result<Menu<tauri::Wry>> {
     let state = app.state::<AppState>().inner().clone();
     let runtime_version = state
         .runtime_manager()
         .current_runtime_version()
         .unwrap_or_else(|_| "unknown".to_string());
-    let profiles = load_tray_profiles(&state);
     let running_count = profiles
         .iter()
         .filter(|profile| profile.summary.runtime_state == RuntimeState::Running)
@@ -210,16 +212,23 @@ fn append_disabled_text(
     menu.append(&MenuItem::with_id(app, id, text, false, None::<&str>)?)
 }
 
-fn load_tray_profiles(state: &AppState) -> Vec<TrayProfile> {
+async fn load_tray_profiles(state: &AppState) -> Vec<TrayProfile> {
     let store = state.profile_store();
-    let summaries = state
-        .registry
-        .try_write()
-        .ok()
-        .and_then(|mut registry| list_profiles_with_runtime_state(&store, &mut registry).ok())
-        .or_else(|| store.list().ok())
-        .unwrap_or_default();
+    let summaries = {
+        let mut registry = state.registry.write().await;
+        list_profiles_with_runtime_state(&store, &mut registry).unwrap_or_default()
+    };
 
+    hydrate_tray_profiles(&store, summaries)
+}
+
+fn load_stored_tray_profiles(state: &AppState) -> Vec<TrayProfile> {
+    let store = state.profile_store();
+    let summaries = store.list().unwrap_or_default();
+    hydrate_tray_profiles(&store, summaries)
+}
+
+fn hydrate_tray_profiles(store: &ProfileStore, summaries: Vec<ProfileSummary>) -> Vec<TrayProfile> {
     summaries
         .into_iter()
         .filter_map(|summary| {
@@ -274,7 +283,7 @@ where
         if let Err(err) = task(state).await {
             eprintln!("tray action failed: {err}");
         }
-        sync_profile_state(&app);
+        sync_profile_state(&app).await;
     });
 }
 

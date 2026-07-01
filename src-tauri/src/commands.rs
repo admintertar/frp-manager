@@ -67,7 +67,7 @@ pub async fn import_profile_from_text(
     toml: String,
 ) -> AppResult<ProfileSummary> {
     let result = state.profile_store().import_from_text(&name, &toml);
-    sync_profile_state(&app);
+    sync_profile_state(&app).await;
     result
 }
 
@@ -82,7 +82,7 @@ pub async fn create_profile(
         let toml = create_profile_toml(&input)?;
         state.profile_store().import_from_text(&profile_name, &toml)
     })();
-    sync_profile_state(&app);
+    sync_profile_state(&app).await;
     result
 }
 
@@ -104,7 +104,7 @@ pub async fn update_profile(
         restart_profile_if_running(&state, &profile_id).await
     }
     .await;
-    sync_profile_state(&app);
+    sync_profile_state(&app).await;
     result
 }
 
@@ -129,7 +129,7 @@ pub async fn delete_profile(
         state.profile_store().delete(&profile_id)
     }
     .await;
-    sync_profile_state(&app);
+    sync_profile_state(&app).await;
     result
 }
 
@@ -141,7 +141,7 @@ pub async fn save_profile(
     raw_toml: String,
 ) -> AppResult<()> {
     let result = state.profile_store().save_raw_toml(&profile_id, &raw_toml);
-    sync_profile_state(&app);
+    sync_profile_state(&app).await;
     result
 }
 
@@ -152,7 +152,7 @@ pub async fn start_profile(
     profile_id: String,
 ) -> AppResult<()> {
     let result = start_profile_by_id(&state, &profile_id).await;
-    sync_profile_state(&app);
+    sync_profile_state(&app).await;
     result
 }
 
@@ -178,7 +178,7 @@ pub async fn stop_profile(
     profile_id: String,
 ) -> AppResult<()> {
     let result = stop_profile_by_id(&state, &profile_id).await;
-    sync_profile_state(&app);
+    sync_profile_state(&app).await;
     result
 }
 
@@ -195,7 +195,7 @@ pub async fn toggle_proxy(
     enabled: bool,
 ) -> AppResult<()> {
     let result = toggle_proxy_by_name(&state, &profile_id, &proxy_name, enabled).await;
-    sync_profile_state(&app);
+    sync_profile_state(&app).await;
     result
 }
 
@@ -229,7 +229,7 @@ pub async fn add_proxy(
         restart_profile_if_running(&state, &profile_id).await
     }
     .await;
-    sync_profile_state(&app);
+    sync_profile_state(&app).await;
     result
 }
 
@@ -250,7 +250,7 @@ pub async fn update_proxy(
         restart_profile_if_running(&state, &profile_id).await
     }
     .await;
-    sync_profile_state(&app);
+    sync_profile_state(&app).await;
     result
 }
 
@@ -270,7 +270,7 @@ pub async fn delete_proxy(
         restart_profile_if_running(&state, &profile_id).await
     }
     .await;
-    sync_profile_state(&app);
+    sync_profile_state(&app).await;
     result
 }
 
@@ -638,6 +638,6 @@ async fn restart_profile_if_running(state: &AppState, profile_id: &str) -> AppRe
         .await
 }
 
-fn sync_profile_state(app: &AppHandle) {
-    crate::tray::sync_profile_state(app);
+async fn sync_profile_state(app: &AppHandle) {
+    crate::tray::sync_profile_state(app).await;
 }
