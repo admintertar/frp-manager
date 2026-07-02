@@ -7,6 +7,7 @@ use toml_edit::{value, ArrayOfTables, DocumentMut, Item, Table};
 
 use crate::app_state::AppState;
 use crate::config_toml::{parse_profile_toml, set_proxy_enabled};
+use crate::diagnostics::{append_app_log, read_app_log as read_app_log_file};
 use crate::error::{AppError, AppResult};
 use crate::github_release::{
     download_url, fetch_latest_app_release, select_checksums_asset, select_platform_asset,
@@ -310,6 +311,11 @@ pub async fn read_profile_logs(
 }
 
 #[tauri::command]
+pub async fn read_app_log(state: State<'_, AppState>) -> AppResult<String> {
+    read_app_log_file(&state.data_dir)
+}
+
+#[tauri::command]
 pub async fn get_runtime_info(state: State<'_, AppState>) -> AppResult<String> {
     state.runtime_manager().current_runtime_version()
 }
@@ -363,50 +369,125 @@ pub async fn install_runtime(state: State<'_, AppState>) -> AppResult<RuntimeSta
 
 #[tauri::command]
 pub async fn check_app_update(app: AppHandle) -> AppResult<AppUpdateCheck> {
-    latest_app_update_check(&app).await
+    let (os, arch) = current_platform();
+    log_app_update_event(
+        &app,
+        &format!(
+            "check requested current={} platform={}/{}",
+            env!("CARGO_PKG_VERSION"),
+            os,
+            arch
+        ),
+    );
+    match latest_app_update_check(&app).await {
+        Ok(update) => {
+            log_app_update_event(
+                &app,
+                &format!(
+                    "check success current={} latest={} updateAvailable={} asset={} downloaded={} installerPath={}",
+                    update.current_version,
+                    update.latest_version,
+                    update.update_available,
+                    update.asset_name,
+                    update.downloaded,
+                    update.installer_path.display()
+                ),
+            );
+            Ok(update)
+        }
+        Err(err) => {
+            log_app_update_event(&app, &format!("check failed error={err}"));
+            Err(err)
+        }
+    }
 }
 
 #[tauri::command]
 pub async fn download_app_update(app: AppHandle) -> AppResult<AppUpdateInstall> {
-    let update = latest_app_update_check(&app).await?;
-    if !update.update_available {
-        return Err(AppError::Update("FRP Manager is already up to date.".into()));
-    }
+    log_app_update_event(&app, "download requested");
+    let result = async {
+        let update = latest_app_update_check(&app).await?;
+        if !update.update_available {
+            return Err(AppError::Update(
+                "FRP Manager is already up to date.".into(),
+            ));
+        }
 
-    if !update.downloaded {
-        let installer_bytes = download_url(&update.download_url).await?;
-        let installer_dir = update
-            .installer_path
-            .parent()
-            .ok_or_else(|| AppError::Update("installer path has no parent directory".into()))?;
-        fs::create_dir_all(installer_dir)?;
-        fs::write(&update.installer_path, installer_bytes)?;
-    }
-    make_app_installer_openable(&update.installer_path)?;
+        if !update.downloaded {
+            log_app_update_event(
+                &app,
+                &format!(
+                    "download start asset={} url={} installerPath={}",
+                    update.asset_name,
+                    update.download_url,
+                    update.installer_path.display()
+                ),
+            );
+            let installer_bytes = download_url(&update.download_url).await?;
+            let installer_dir = update
+                .installer_path
+                .parent()
+                .ok_or_else(|| AppError::Update("installer path has no parent directory".into()))?;
+            fs::create_dir_all(installer_dir)?;
+            fs::write(&update.installer_path, installer_bytes)?;
+        }
+        make_app_installer_openable(&update.installer_path)?;
 
-    Ok(AppUpdateInstall {
-        asset_name: update.asset_name,
-        installer_path: update.installer_path,
-    })
+        Ok(AppUpdateInstall {
+            asset_name: update.asset_name,
+            installer_path: update.installer_path,
+        })
+    }
+    .await;
+
+    match &result {
+        Ok(install) => log_app_update_event(
+            &app,
+            &format!(
+                "download success asset={} installerPath={}",
+                install.asset_name,
+                install.installer_path.display()
+            ),
+        ),
+        Err(err) => log_app_update_event(&app, &format!("download failed error={err}")),
+    }
+    result
 }
 
 #[tauri::command]
 pub async fn open_app_update_installer(app: AppHandle) -> AppResult<AppUpdateInstall> {
-    let update = latest_app_update_check(&app).await?;
-    if !update.downloaded {
-        return Err(AppError::Update(
-            "Download the FRP Manager installer before opening it.".into(),
-        ));
+    log_app_update_event(&app, "open installer requested");
+    let result = async {
+        let update = latest_app_update_check(&app).await?;
+        if !update.downloaded {
+            return Err(AppError::Update(
+                "Download the FRP Manager installer before opening it.".into(),
+            ));
+        }
+
+        make_app_installer_openable(&update.installer_path)?;
+        tauri_plugin_opener::open_path(&update.installer_path, None::<&str>)
+            .map_err(|err| AppError::Update(format!("open installer failed: {err}")))?;
+
+        Ok(AppUpdateInstall {
+            asset_name: update.asset_name,
+            installer_path: update.installer_path,
+        })
     }
+    .await;
 
-    make_app_installer_openable(&update.installer_path)?;
-    tauri_plugin_opener::open_path(&update.installer_path, None::<&str>)
-        .map_err(|err| AppError::Update(format!("open installer failed: {err}")))?;
-
-    Ok(AppUpdateInstall {
-        asset_name: update.asset_name,
-        installer_path: update.installer_path,
-    })
+    match &result {
+        Ok(install) => log_app_update_event(
+            &app,
+            &format!(
+                "open installer success asset={} installerPath={}",
+                install.asset_name,
+                install.installer_path.display()
+            ),
+        ),
+        Err(err) => log_app_update_event(&app, &format!("open installer failed error={err}")),
+    }
+    result
 }
 
 async fn latest_app_update_check(app: &AppHandle) -> AppResult<AppUpdateCheck> {
@@ -425,6 +506,16 @@ async fn latest_app_update_check(app: &AppHandle) -> AppResult<AppUpdateCheck> {
         downloaded: installer_path.exists(),
         installer_path,
     })
+}
+
+fn log_app_update_event(app: &AppHandle, message: &str) {
+    let Ok(data_dir) = app.path().app_data_dir() else {
+        eprintln!("failed to resolve app data directory for app-update log");
+        return;
+    };
+    if let Err(err) = append_app_log(&data_dir, "app-update", message) {
+        eprintln!("failed to write app-update log: {err}");
+    }
 }
 
 pub fn app_update_available(current_version: &str, latest_version: &str) -> bool {

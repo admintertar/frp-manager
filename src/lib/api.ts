@@ -108,6 +108,10 @@ export function readProfileLogs(profileId: string): Promise<string> {
   return invokeOrFallback("read_profile_logs", { profileId }, "");
 }
 
+export function readAppLog(): Promise<string> {
+  return invokeOrFallback("read_app_log", undefined, "");
+}
+
 export function getRuntimeInfo(): Promise<string> {
   return invokeOrFallback("get_runtime_info", undefined, "not installed");
 }

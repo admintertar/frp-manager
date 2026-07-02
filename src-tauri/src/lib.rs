@@ -1,6 +1,7 @@
 pub mod app_state;
 pub mod commands;
 pub mod config_toml;
+pub mod diagnostics;
 pub mod error;
 pub mod github_release;
 pub mod models;
@@ -55,6 +56,7 @@ pub fn run() {
             commands::add_proxy,
             commands::update_proxy,
             commands::delete_proxy,
+            commands::read_app_log,
             commands::read_profile_logs,
             commands::get_runtime_info,
             commands::get_runtime_status,

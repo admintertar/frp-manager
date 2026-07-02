@@ -8,6 +8,7 @@ use frp_manager_lib::commands::{
     update_profile_toml, update_proxy_toml, AddProxyInput, AuthMethodInput, CreateProfileInput,
 };
 use frp_manager_lib::config_toml::parse_profile_toml;
+use frp_manager_lib::diagnostics::{app_log_path, append_app_log, read_app_log};
 use frp_manager_lib::error::AppError;
 use frp_manager_lib::github_release::{
     app_release_from_latest_url, app_release_tag_from_latest_url, select_app_platform_asset,
@@ -64,6 +65,18 @@ fn clean_log_output_strips_ansi_color_sequences() {
     let cleaned = clean_log_output(raw);
 
     assert_eq!(cleaned, "2026-07-01 17:51:43.499 [I] connected\nplain");
+}
+
+#[test]
+fn app_diagnostics_log_is_written_under_app_logs_directory() {
+    let dir = tempdir().unwrap();
+
+    append_app_log(dir.path(), "app-update", "check success\nlatest=0.0.7").unwrap();
+
+    let path = app_log_path(dir.path());
+    assert!(path.ends_with("logs/app.log"));
+    let contents = read_app_log(dir.path()).unwrap();
+    assert!(contents.contains("[app-update] check success latest=0.0.7"));
 }
 
 #[test]
