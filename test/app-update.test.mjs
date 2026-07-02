@@ -89,6 +89,30 @@ test("app update check returns a direct installer download url", async () => {
   assert.match(lib, /commands::open_app_update_installer/);
 });
 
+test("app update diagnostics are written to the app log", async () => {
+  const commands = await readFile(
+    new URL("../src-tauri/src/commands.rs", import.meta.url),
+    "utf8",
+  );
+  const diagnostics = await readFile(
+    new URL("../src-tauri/src/diagnostics.rs", import.meta.url),
+    "utf8",
+  );
+  const lib = await readFile(new URL("../src-tauri/src/lib.rs", import.meta.url), "utf8");
+  const api = await readFile(new URL("../src/lib/api.ts", import.meta.url), "utf8");
+
+  assert.match(diagnostics, /logs"\)\.join\("app\.log"\)/);
+  assert.match(commands, /log_app_update_event/);
+  assert.match(commands, /check requested current=/);
+  assert.match(commands, /platform=/);
+  assert.match(commands, /check success current=/);
+  assert.match(commands, /check failed error=/);
+  assert.match(commands, /download failed error=/);
+  assert.match(lib, /commands::read_app_log/);
+  assert.match(api, /readAppLog/);
+  assert.match(api, /invokeOrFallback\("read_app_log"/);
+});
+
 test("Windows app updates prefer MSI packages over NSIS exe installers", async () => {
   const github = await readFile(
     new URL("../src-tauri/src/github_release.rs", import.meta.url),

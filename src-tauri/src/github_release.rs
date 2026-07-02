@@ -78,10 +78,7 @@ pub fn verify_asset_checksum(asset_name: &str, bytes: &[u8], checksums: &str) ->
     Ok(())
 }
 
-pub async fn fetch_latest_release_for_platform(
-    os: &str,
-    arch: &str,
-) -> AppResult<GitHubRelease> {
+pub async fn fetch_latest_release_for_platform(os: &str, arch: &str) -> AppResult<GitHubRelease> {
     let html_url = fetch_latest_redirect_url(FRP_LATEST_RELEASE_URL).await?;
     frp_release_from_latest_url(&html_url, os, arch)
 }
