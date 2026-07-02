@@ -101,6 +101,8 @@ The workflow first runs TypeScript checks, frontend build, source tests, and Rus
 
 The macOS build keeps the current app icon and uses ad-hoc signing in CI when no Apple signing certificate is configured. For public distribution, add Apple Developer ID signing and notarization secrets later. Linux packaging installs WebKitGTK 4.1 and appindicator development libraries so the Tauri window and tray/menu integration can compile.
 
+Release publishing requires GitHub Actions to write repository contents. In GitHub, check Settings -> Actions -> General -> Workflow permissions and allow read and write permissions. If the repository or organization keeps `GITHUB_TOKEN` restricted, create a fine-grained personal access token with repository Contents read/write access and save it as the `RELEASE_TOKEN` secret.
+
 The app package still does not include `frpc`; users install or update the matching runtime from Runtime Settings after launching FRP Manager.
 
 ### Data Storage
@@ -222,6 +224,8 @@ workflow 会先执行 TypeScript 检查、前端构建、源码测试和 Rust �
 - Linux x64，基于 Ubuntu 22.04
 
 macOS 包会继续使用现在的应用图标；CI 里没有 Apple 证书时会使用 ad-hoc signing。后面如果要正式公开分发，再补 Apple Developer ID 签名和 notarization secrets。Linux 打包会安装 WebKitGTK 4.1 和 appindicator 开发库，保证 Tauri 窗口和托盘/菜单功能可以编译。
+
+发布 Release 需要 GitHub Actions 拥有写入仓库内容的权限。需要在 GitHub 的 Settings -> Actions -> General -> Workflow permissions 里允许 read and write permissions。如果仓库或组织仍然限制 `GITHUB_TOKEN`，可以创建一个 fine-grained personal access token，给当前仓库 Contents read/write 权限，并保存为 `RELEASE_TOKEN` secret。
 
 应用安装包仍然不会内置 `frpc`；用户启动 FRP Manager 后，在 Runtime Settings 里下载或升级当前系统对应的 frpc runtime。
 
