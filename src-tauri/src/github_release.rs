@@ -161,8 +161,8 @@ pub fn select_app_platform_asset(version: &str, os: &str, arch: &str) -> AppResu
     let (asset_arch, setup, extension) = match (os, arch) {
         ("darwin", "arm64") => ("aarch64", "", ".dmg"),
         ("darwin", "amd64") => ("x64", "", ".dmg"),
-        ("windows", "amd64") => ("x64", "-setup", ".exe"),
-        ("windows", "arm64") => ("arm64", "-setup", ".exe"),
+        ("windows", "amd64") => ("x64", "", ".msi"),
+        ("windows", "arm64") => ("arm64", "", ".msi"),
         ("linux", "amd64") => ("amd64", "", ".AppImage"),
         ("linux", "arm64") => ("aarch64", "", ".AppImage"),
         _ => {

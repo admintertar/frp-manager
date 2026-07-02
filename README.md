@@ -101,6 +101,8 @@ The workflow first runs TypeScript checks, frontend build, source tests, and Rus
 
 The macOS build keeps the current app icon and uses ad-hoc signing in CI when no Apple signing certificate is configured. For public distribution, add Apple Developer ID signing and notarization secrets later. Linux packaging installs WebKitGTK 4.1 and appindicator development libraries so the Tauri window and tray/menu integration can compile.
 
+Windows packages are unsigned unless a Windows code signing certificate is added to CI. Unsigned installers and newly released binaries can trigger SmartScreen or antivirus warnings because they do not have publisher reputation yet. FRP Manager app updates prefer the MSI asset on Windows, but public distribution should use an OV/EV code signing certificate with timestamped Windows bundle signatures.
+
 Release publishing requires GitHub Actions to write repository contents. In GitHub, check Settings -> Actions -> General -> Workflow permissions and allow read and write permissions. If the repository or organization keeps `GITHUB_TOKEN` restricted, create a fine-grained personal access token with repository Contents read/write access and save it as the `RELEASE_TOKEN` secret.
 
 The app package still does not include `frpc`; users install or update the matching runtime from Runtime Settings after launching FRP Manager.
@@ -123,6 +125,7 @@ The app stores:
 ### Notes
 
 - Runtime downloads use GitHub Releases from `fatedier/frp`; GitHub API rate limits may affect update checks.
+- Some antivirus products classify tunneling or proxy tools such as `frpc.exe` as potentially risky. FRP Manager downloads frpc from `fatedier/frp` Releases and verifies the official sha256 checksum before installing it.
 - Quitting FRP Manager from the tray or Dock shuts down managed frpc processes.
 - Proxy toggles rewrite the local profile TOML and reload the running profile when needed.
 
@@ -225,6 +228,8 @@ workflow 会先执行 TypeScript 检查、前端构建、源码测试和 Rust �
 
 macOS 包会继续使用现在的应用图标；CI 里没有 Apple 证书时会使用 ad-hoc signing。后面如果要正式公开分发，再补 Apple Developer ID 签名和 notarization secrets。Linux 打包会安装 WebKitGTK 4.1 和 appindicator 开发库，保证 Tauri 窗口和托盘/菜单功能可以编译。
 
+Windows 包在 CI 里没有 Windows 代码签名证书时会是未签名状态。未签名安装器和刚发布的新二进制可能触发 SmartScreen 或杀毒软件提醒，因为还没有发布者信誉。FRP Manager 在 Windows 自更新时会优先下载 MSI 资产；如果要公开稳定分发，应使用 OV/EV 代码签名证书给 Windows 包签名并加时间戳。
+
 发布 Release 需要 GitHub Actions 拥有写入仓库内容的权限。需要在 GitHub 的 Settings -> Actions -> General -> Workflow permissions 里允许 read and write permissions。如果仓库或组织仍然限制 `GITHUB_TOKEN`，可以创建一个 fine-grained personal access token，给当前仓库 Contents read/write 权限，并保存为 `RELEASE_TOKEN` secret。
 
 应用安装包仍然不会内置 `frpc`；用户启动 FRP Manager 后，在 Runtime Settings 里下载或升级当前系统对应的 frpc runtime。
@@ -247,5 +252,6 @@ macOS 下应用数据默认位于：
 ### 说明
 
 - Runtime 下载和更新检查依赖 `fatedier/frp` GitHub Releases，可能会受到 GitHub API 访问限制影响。
+- 部分杀毒软件会把 `frpc.exe` 这类隧道/代理工具归类为潜在风险。FRP Manager 会从 `fatedier/frp` Releases 下载 frpc，并在安装前校验官方 sha256 checksum。
 - 从托盘或 Dock 退出 FRP Manager 时，会退出由应用托管的 frpc 进程。
 - 启用或停用 Proxy 会改写本地 profile TOML；如果对应 Profile 正在运行，会按需 reload。

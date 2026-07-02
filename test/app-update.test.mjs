@@ -89,6 +89,17 @@ test("app update check returns a direct installer download url", async () => {
   assert.match(lib, /commands::open_app_update_installer/);
 });
 
+test("Windows app updates prefer MSI packages over NSIS exe installers", async () => {
+  const github = await readFile(
+    new URL("../src-tauri/src/github_release.rs", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(github, /\("windows", "amd64"\)\s*=>\s*\("x64",\s*"",\s*"\.msi"\)/);
+  assert.match(github, /\("windows", "arm64"\)\s*=>\s*\("arm64",\s*"",\s*"\.msi"\)/);
+  assert.doesNotMatch(github, /\("windows", "amd64"\)\s*=>\s*\("x64",\s*"-setup",\s*"\.exe"\)/);
+});
+
 test("app update prompt downloads first and opens existing installers manually", async () => {
   const prompt = await readFile(
     new URL("../src/components/AppUpdatePrompt.tsx", import.meta.url),
