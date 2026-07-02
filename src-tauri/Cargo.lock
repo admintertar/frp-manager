@@ -1117,7 +1117,7 @@ dependencies = [
 
 [[package]]
 name = "frp-manager"
-version = "0.0.3"
+version = "0.0.6"
 dependencies = [
  "chrono",
  "flate2",
