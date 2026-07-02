@@ -7,6 +7,8 @@ pub const FRP_LATEST_RELEASE_URL: &str = "https://github.com/fatedier/frp/releas
 pub const APP_LATEST_RELEASE_URL: &str =
     "https://github.com/admintertar/frp-manager/releases/latest";
 const FRP_RELEASE_DOWNLOAD_BASE: &str = "https://github.com/fatedier/frp/releases/download";
+const APP_RELEASE_DOWNLOAD_BASE: &str =
+    "https://github.com/admintertar/frp-manager/releases/download";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitHubRelease {
@@ -26,6 +28,8 @@ pub struct ReleaseAsset {
 pub struct AppLatestRelease {
     pub tag_name: String,
     pub html_url: String,
+    pub asset_name: String,
+    pub download_url: String,
 }
 
 pub fn select_platform_asset(
@@ -83,9 +87,16 @@ pub async fn fetch_latest_release_for_platform(
 }
 
 pub async fn fetch_latest_app_release() -> AppResult<AppLatestRelease> {
+    let (os, arch) = crate::runtime_manager::current_platform();
+    fetch_latest_app_release_for_platform(os, arch).await
+}
+
+pub async fn fetch_latest_app_release_for_platform(
+    os: &str,
+    arch: &str,
+) -> AppResult<AppLatestRelease> {
     let html_url = fetch_latest_redirect_url(APP_LATEST_RELEASE_URL).await?;
-    let tag_name = app_release_tag_from_latest_url(&html_url)?;
-    Ok(AppLatestRelease { tag_name, html_url })
+    app_release_from_latest_url(&html_url, os, arch)
 }
 
 async fn fetch_latest_redirect_url(url: &str) -> AppResult<String> {
@@ -133,6 +144,41 @@ pub fn app_release_tag_from_latest_url(url: &str) -> AppResult<String> {
     release_tag_from_latest_url(url)
 }
 
+pub fn app_release_from_latest_url(url: &str, os: &str, arch: &str) -> AppResult<AppLatestRelease> {
+    let tag_name = release_tag_from_latest_url(url)?;
+    let version = tag_name.trim_start_matches('v');
+    let asset = select_app_platform_asset(version, os, arch)?;
+
+    Ok(AppLatestRelease {
+        tag_name: tag_name.clone(),
+        html_url: url.to_string(),
+        download_url: app_release_asset_download_url(&tag_name, &asset.name),
+        asset_name: asset.name,
+    })
+}
+
+pub fn select_app_platform_asset(version: &str, os: &str, arch: &str) -> AppResult<ReleaseAsset> {
+    let (asset_arch, setup, extension) = match (os, arch) {
+        ("darwin", "arm64") => ("aarch64", "", ".dmg"),
+        ("darwin", "amd64") => ("x64", "", ".dmg"),
+        ("windows", "amd64") => ("x64", "-setup", ".exe"),
+        ("windows", "arm64") => ("arm64", "-setup", ".exe"),
+        ("linux", "amd64") => ("amd64", "", ".AppImage"),
+        ("linux", "arm64") => ("aarch64", "", ".AppImage"),
+        _ => {
+            return Err(AppError::Update(format!(
+                "unsupported FRP Manager update platform: {os}_{arch}"
+            )))
+        }
+    };
+    let name = format!("FRP-Manager_{version}_{os}_{asset_arch}{setup}{extension}");
+
+    Ok(ReleaseAsset {
+        browser_download_url: String::new(),
+        name,
+    })
+}
+
 fn release_tag_from_latest_url(url: &str) -> AppResult<String> {
     let parsed = reqwest::Url::parse(url)
         .map_err(|err| AppError::Update(format!("invalid release URL: {err}")))?;
@@ -165,6 +211,10 @@ fn platform_asset_name(version: &str, os: &str, arch: &str) -> String {
 
 fn release_asset_download_url(tag: &str, asset_name: &str) -> String {
     format!("{FRP_RELEASE_DOWNLOAD_BASE}/{tag}/{asset_name}")
+}
+
+fn app_release_asset_download_url(tag: &str, asset_name: &str) -> String {
+    format!("{APP_RELEASE_DOWNLOAD_BASE}/{tag}/{asset_name}")
 }
 
 pub async fn download_url(url: &str) -> AppResult<Vec<u8>> {

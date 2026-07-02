@@ -135,7 +135,14 @@ export default function App() {
   async function checkForAppUpdate(manual = false) {
     try {
       const update = await checkAppUpdate();
-      if (!update.updateAvailable) return;
+      if (!update.updateAvailable) {
+        if (manual) {
+          setAppUpdate(update);
+          setAppUpdateOpen(true);
+          setError(null);
+        }
+        return;
+      }
 
       const ignoredVersion = window.localStorage.getItem(
         APP_UPDATE_IGNORED_VERSION_KEY,

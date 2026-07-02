@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use toml_edit::{value, ArrayOfTables, DocumentMut, Item, Table};
 
 use crate::app_state::AppState;
@@ -50,6 +50,15 @@ pub struct AppUpdateCheck {
     pub latest_version: String,
     pub update_available: bool,
     pub release_url: String,
+    pub asset_name: String,
+    pub download_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppUpdateInstall {
+    pub asset_name: String,
+    pub installer_path: PathBuf,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -352,6 +361,36 @@ pub async fn install_runtime(state: State<'_, AppState>) -> AppResult<RuntimeSta
 
 #[tauri::command]
 pub async fn check_app_update() -> AppResult<AppUpdateCheck> {
+    latest_app_update_check().await
+}
+
+#[tauri::command]
+pub async fn install_app_update(app: AppHandle) -> AppResult<AppUpdateInstall> {
+    let update = latest_app_update_check().await?;
+    if !update.update_available {
+        return Err(AppError::Update("FRP Manager is already up to date.".into()));
+    }
+
+    let installer_bytes = download_url(&update.download_url).await?;
+    let installer_dir = app
+        .path()
+        .download_dir()
+        .map_err(|err| AppError::Update(format!("resolve downloads directory failed: {err}")))?
+        .join("FRP Manager");
+    fs::create_dir_all(&installer_dir)?;
+    let installer_path = installer_dir.join(&update.asset_name);
+    fs::write(&installer_path, installer_bytes)?;
+    make_app_installer_openable(&installer_path)?;
+    tauri_plugin_opener::open_path(&installer_path, None::<&str>)
+        .map_err(|err| AppError::Update(format!("open installer failed: {err}")))?;
+
+    Ok(AppUpdateInstall {
+        asset_name: update.asset_name,
+        installer_path,
+    })
+}
+
+async fn latest_app_update_check() -> AppResult<AppUpdateCheck> {
     let release = fetch_latest_app_release().await?;
     let current_version = env!("CARGO_PKG_VERSION").to_string();
     let latest_version = release.tag_name.trim_start_matches('v').to_string();
@@ -361,6 +400,8 @@ pub async fn check_app_update() -> AppResult<AppUpdateCheck> {
         current_version,
         latest_version,
         release_url: release.html_url,
+        asset_name: release.asset_name,
+        download_url: release.download_url,
     })
 }
 
@@ -412,6 +453,20 @@ fn version_segments_cmp(left: &[u64], right: &[u64]) -> std::cmp::Ordering {
         }
     }
     std::cmp::Ordering::Equal
+}
+
+fn make_app_installer_openable(path: &Path) -> AppResult<()> {
+    #[cfg(unix)]
+    if path.extension().and_then(|extension| extension.to_str()) == Some("AppImage") {
+        use std::os::unix::fs::PermissionsExt;
+
+        let metadata = fs::metadata(path)?;
+        let mut permissions = metadata.permissions();
+        permissions.set_mode(permissions.mode() | 0o755);
+        fs::set_permissions(path, permissions)?;
+    }
+
+    Ok(())
 }
 
 pub fn update_profile_toml(input: &str, update: &CreateProfileInput) -> AppResult<String> {

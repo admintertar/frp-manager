@@ -50,7 +50,46 @@ test("app update prompt is a small modal with update and ignore actions", async 
   assert.match(app, /listenAppUpdateCheckRequested/);
   assert.match(prompt, /New version available/);
   assert.match(prompt, /Ignore this version/);
-  assert.match(prompt, /openUrl/);
+  assert.match(prompt, /installAppUpdate/);
+  assert.doesNotMatch(prompt, /openUrl\(update\.releaseUrl\)/);
   assert.match(tray, /APP_UPDATE_CHECK_REQUESTED_EVENT/);
   assert.match(tray, /app-update-check-requested/);
+});
+
+test("app update check returns a direct installer download url", async () => {
+  const commands = await readFile(
+    new URL("../src-tauri/src/commands.rs", import.meta.url),
+    "utf8",
+  );
+  const github = await readFile(
+    new URL("../src-tauri/src/github_release.rs", import.meta.url),
+    "utf8",
+  );
+  const types = await readFile(new URL("../src/types.ts", import.meta.url), "utf8");
+  const api = await readFile(new URL("../src/lib/api.ts", import.meta.url), "utf8");
+  const lib = await readFile(new URL("../src-tauri/src/lib.rs", import.meta.url), "utf8");
+
+  assert.match(commands, /download_url: release\.download_url/);
+  assert.match(github, /select_app_platform_asset/);
+  assert.match(github, /FRP-Manager_/);
+  assert.match(types, /downloadUrl: string;/);
+  assert.match(types, /assetName: string;/);
+  assert.match(api, /installAppUpdate/);
+  assert.match(api, /invokeOrFallback\("install_app_update"/);
+  assert.match(lib, /commands::install_app_update/);
+});
+
+test("manual app update checks show feedback when already current", async () => {
+  const app = await readFile(new URL("../src/App.tsx", import.meta.url), "utf8");
+  const prompt = await readFile(
+    new URL("../src/components/AppUpdatePrompt.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    app,
+    /if \(!update\.updateAvailable\) \{\s*if \(manual\) \{\s*setAppUpdate\(update\);\s*setAppUpdateOpen\(true\);/s,
+  );
+  assert.match(prompt, /FRP Manager is up to date/);
+  assert.match(prompt, /update\.updateAvailable \?/);
 });

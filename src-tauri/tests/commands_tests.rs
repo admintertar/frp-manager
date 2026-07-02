@@ -9,7 +9,9 @@ use frp_manager_lib::commands::{
 };
 use frp_manager_lib::config_toml::parse_profile_toml;
 use frp_manager_lib::error::AppError;
-use frp_manager_lib::github_release::app_release_tag_from_latest_url;
+use frp_manager_lib::github_release::{
+    app_release_from_latest_url, app_release_tag_from_latest_url, select_app_platform_asset,
+};
 use frp_manager_lib::models::{ProxyType, RuntimeState};
 use frp_manager_lib::process_manager::ProcessRegistry;
 use frp_manager_lib::profile_store::ProfileStore;
@@ -80,6 +82,25 @@ fn app_release_tag_parses_github_latest_redirect_url() {
     .unwrap();
 
     assert_eq!(tag, "v0.1.1");
+}
+
+#[test]
+fn builds_app_update_download_asset_from_latest_redirect_url() {
+    let release = app_release_from_latest_url(
+        "https://github.com/admintertar/frp-manager/releases/tag/v0.0.4",
+        "darwin",
+        "arm64",
+    )
+    .unwrap();
+
+    assert_eq!(release.tag_name, "v0.0.4");
+    assert_eq!(
+        release.download_url,
+        "https://github.com/admintertar/frp-manager/releases/download/v0.0.4/FRP-Manager_0.0.4_darwin_aarch64.dmg"
+    );
+
+    let asset = select_app_platform_asset("0.0.4", "darwin", "arm64").unwrap();
+    assert_eq!(asset.name, "FRP-Manager_0.0.4_darwin_aarch64.dmg");
 }
 
 #[tokio::test]

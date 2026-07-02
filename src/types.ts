@@ -108,4 +108,11 @@ export interface AppUpdateCheck {
   latestVersion: string;
   updateAvailable: boolean;
   releaseUrl: string;
+  assetName: string;
+  downloadUrl: string;
+}
+
+export interface AppUpdateInstall {
+  assetName: string;
+  installerPath: string;
 }

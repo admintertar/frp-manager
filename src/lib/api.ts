@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   AddProxyInput,
   AppUpdateCheck,
+  AppUpdateInstall,
   CreateProfileInput,
   Profile,
   ProfileSummary,
@@ -146,10 +147,20 @@ export function installRuntime(): Promise<RuntimeStatus> {
 
 export function checkAppUpdate(): Promise<AppUpdateCheck> {
   return invokeOrFallback("check_app_update", undefined, {
-    currentVersion: "0.1.0",
-    latestVersion: "0.1.0",
+    currentVersion: "0.0.3",
+    latestVersion: "0.0.3",
     updateAvailable: false,
     releaseUrl: "https://github.com/admintertar/frp-manager/releases",
+    assetName: "FRP-Manager_0.0.3_darwin_aarch64.dmg",
+    downloadUrl:
+      "https://github.com/admintertar/frp-manager/releases/download/v0.0.3/FRP-Manager_0.0.3_darwin_aarch64.dmg",
+  });
+}
+
+export function installAppUpdate(): Promise<AppUpdateInstall> {
+  return invokeOrFallback("install_app_update", undefined, {
+    assetName: "FRP-Manager_0.0.3_darwin_aarch64.dmg",
+    installerPath: "",
   });
 }
 

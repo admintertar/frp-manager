@@ -35,6 +35,11 @@ assert(workflow.includes("pnpm install --frozen-lockfile"), "workflow must use f
 assert(workflow.includes("pnpm typecheck"), "workflow must run TypeScript checks");
 assert(workflow.includes("pnpm build"), "workflow must build the frontend");
 assert(workflow.includes("cargo test --manifest-path src-tauri/Cargo.toml"), "workflow must run Rust tests");
+assert(workflow.includes("Validate release version"), "workflow must validate tag and app versions before publishing");
+assert(workflow.includes("TAG_VERSION=\"${GITHUB_REF_NAME#v}\""), "workflow must compare release tag version without the v prefix");
+assert(workflow.includes("package.json version mismatch"), "workflow must fail when package.json version differs from the tag");
+assert(workflow.includes("tauri.conf.json version mismatch"), "workflow must fail when Tauri version differs from the tag");
+assert(workflow.includes("Cargo.toml version mismatch"), "workflow must fail when Cargo version differs from the tag");
 assert(workflow.includes("libwebkit2gtk-4.1-dev"), "Linux builds need WebKitGTK 4.1");
 assert(
   workflow.includes("libayatana-appindicator3-dev"),
