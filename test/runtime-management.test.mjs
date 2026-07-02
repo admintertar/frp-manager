@@ -31,6 +31,23 @@ test("runtime settings exposes install and update management states", async () =
   assert.match(workbench, /runtimeInstalled/);
 });
 
+test("runtime settings actions wrap inside the modal", async () => {
+  const css = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
+  const actionsBlock = css.match(
+    /\.runtime-modal \.modal-actions\s*\{(?<body>[\s\S]*?)\}/,
+  )?.groups?.body;
+  const buttonBlock = css.match(
+    /\.runtime-modal \.modal-actions \.command-button\s*\{(?<body>[\s\S]*?)\}/,
+  )?.groups?.body;
+
+  assert.ok(actionsBlock, "expected runtime modal action CSS block");
+  assert.ok(buttonBlock, "expected runtime modal action button CSS block");
+  assert.match(actionsBlock, /flex-wrap:\s*wrap/);
+  assert.match(actionsBlock, /overflow:\s*hidden/);
+  assert.match(buttonBlock, /min-width:\s*0/);
+  assert.match(buttonBlock, /white-space:\s*nowrap/);
+});
+
 test("frpc is not bundled as a Tauri sidecar", async () => {
   const config = await readFile(
     new URL("../src-tauri/tauri.conf.json", import.meta.url),

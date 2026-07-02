@@ -850,6 +850,16 @@ button {
   width: min(560px, calc(100vw - 48px));
 }
 
+.runtime-modal .modal-actions {
+  flex-wrap: wrap;
+  overflow: hidden;
+}
+
+.runtime-modal .modal-actions .command-button {
+  min-width: 0;
+  white-space: nowrap;
+}
+
 .profile-form-modal {
   width: min(680px, calc(100vw - 48px));
 }
