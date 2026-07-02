@@ -9,6 +9,7 @@ use crate::profile_store::ProfileStore;
 
 const TRAY_ID: &str = "frp-manager";
 pub const PROFILE_STATE_CHANGED_EVENT: &str = "profile-state-changed";
+pub const APP_UPDATE_CHECK_REQUESTED_EVENT: &str = "app-update-check-requested";
 
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let state = app.state::<AppState>().inner().clone();
@@ -256,7 +257,10 @@ fn hydrate_tray_profiles(store: &ProfileStore, summaries: Vec<ProfileSummary>) -
 fn handle_menu_event(app: &AppHandle, id: &str) {
     match id {
         "open" => show_main_window(app),
-        "check_update" => show_main_window(app),
+        "check_update" => {
+            show_main_window(app);
+            let _ = app.emit(APP_UPDATE_CHECK_REQUESTED_EVENT, ());
+        }
         "quit" => quit_app(app, 0),
         _ if id.starts_with("start-profile:") => {
             if let Some(profile_id) =

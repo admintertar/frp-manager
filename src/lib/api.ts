@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AddProxyInput,
+  AppUpdateCheck,
   CreateProfileInput,
   Profile,
   ProfileSummary,
@@ -12,12 +13,20 @@ import type {
 } from "../types";
 
 export const PROFILE_STATE_CHANGED_EVENT = "profile-state-changed";
+export const APP_UPDATE_CHECK_REQUESTED_EVENT = "app-update-check-requested";
 
 export function listenProfileStateChanged(
   handler: () => void,
 ): Promise<(() => void) | undefined> {
   if (!hasTauriRuntime()) return Promise.resolve(undefined);
   return listen(PROFILE_STATE_CHANGED_EVENT, () => handler());
+}
+
+export function listenAppUpdateCheckRequested(
+  handler: () => void,
+): Promise<(() => void) | undefined> {
+  if (!hasTauriRuntime()) return Promise.resolve(undefined);
+  return listen(APP_UPDATE_CHECK_REQUESTED_EVENT, () => handler());
 }
 
 export function listProfiles(): Promise<ProfileSummary[]> {
@@ -133,6 +142,15 @@ export function checkRuntimeUpdate(): Promise<RuntimeUpdateCheck> {
 
 export function installRuntime(): Promise<RuntimeStatus> {
   return invokeOrFallback("install_runtime");
+}
+
+export function checkAppUpdate(): Promise<AppUpdateCheck> {
+  return invokeOrFallback("check_app_update", undefined, {
+    currentVersion: "0.1.0",
+    latestVersion: "0.1.0",
+    updateAvailable: false,
+    releaseUrl: "https://github.com/admintertar/frp-manager/releases",
+  });
 }
 
 function invokeOrFallback<T>(

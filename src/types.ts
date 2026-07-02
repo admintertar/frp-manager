@@ -102,3 +102,10 @@ export interface RuntimeStatus {
   runtimePath: string | null;
   platform: RuntimePlatform;
 }
+
+export interface AppUpdateCheck {
+  currentVersion: string;
+  latestVersion: string;
+  updateAvailable: boolean;
+  releaseUrl: string;
+}

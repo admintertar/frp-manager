@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::error::{AppError, AppResult};
-use crate::github_release::{fetch_latest_release, GitHubRelease};
+use crate::github_release::{fetch_latest_release_for_platform, GitHubRelease};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -198,7 +198,8 @@ impl RuntimeManager {
             }
         }
 
-        match fetch_latest_release().await {
+        let platform = RuntimePlatform::current();
+        match fetch_latest_release_for_platform(&platform.os, &platform.arch).await {
             Ok(release) => {
                 self.write_release_cache(&release)?;
                 Ok(CachedRelease {

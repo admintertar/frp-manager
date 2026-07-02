@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 use toml_edit::{value, ArrayOfTables, DocumentMut, Item, Table};
 
@@ -9,7 +9,8 @@ use crate::app_state::AppState;
 use crate::config_toml::{parse_profile_toml, set_proxy_enabled};
 use crate::error::{AppError, AppResult};
 use crate::github_release::{
-    download_url, select_checksums_asset, select_platform_asset, verify_asset_checksum,
+    download_url, fetch_latest_app_release, select_checksums_asset, select_platform_asset,
+    verify_asset_checksum,
 };
 use crate::models::{Profile, ProfileSummary, ProxyType, RuntimeState};
 use crate::process_manager::{ProcessRegistry, ProfileProcessState};
@@ -40,6 +41,15 @@ pub struct AddProxyInput {
     pub remote_port: Option<u16>,
     pub subdomain: Option<String>,
     pub custom_domains: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppUpdateCheck {
+    pub current_version: String,
+    pub latest_version: String,
+    pub update_available: bool,
+    pub release_url: String,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -340,6 +350,30 @@ pub async fn install_runtime(state: State<'_, AppState>) -> AppResult<RuntimeSta
     runtime.install_runtime_archive(&latest_version, os, arch, &asset.name, &archive_bytes)
 }
 
+#[tauri::command]
+pub async fn check_app_update() -> AppResult<AppUpdateCheck> {
+    let release = fetch_latest_app_release().await?;
+    let current_version = env!("CARGO_PKG_VERSION").to_string();
+    let latest_version = release.tag_name.trim_start_matches('v').to_string();
+
+    Ok(AppUpdateCheck {
+        update_available: app_update_available(&current_version, &latest_version),
+        current_version,
+        latest_version,
+        release_url: release.html_url,
+    })
+}
+
+pub fn app_update_available(current_version: &str, latest_version: &str) -> bool {
+    match (
+        parse_version_segments(current_version),
+        parse_version_segments(latest_version),
+    ) {
+        (Some(current), Some(latest)) => version_segments_cmp(&latest, &current).is_gt(),
+        _ => normalize_version(latest_version) != normalize_version(current_version),
+    }
+}
+
 pub fn create_profile_toml(input: &CreateProfileInput) -> AppResult<String> {
     let _profile_name = required_trimmed(&input.profile_name, "profileName")?;
     let server_addr = required_trimmed(&input.server_addr, "serverAddr")?;
@@ -350,6 +384,34 @@ pub fn create_profile_toml(input: &CreateProfileInput) -> AppResult<String> {
     set_auth_table(&mut doc, input)?;
 
     Ok(doc.to_string())
+}
+
+fn parse_version_segments(version: &str) -> Option<Vec<u64>> {
+    let clean = normalize_version(version);
+    let core = clean.split(['-', '+']).next().unwrap_or(&clean);
+    let segments = core
+        .split('.')
+        .map(str::parse::<u64>)
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    (!segments.is_empty()).then_some(segments)
+}
+
+fn normalize_version(version: &str) -> String {
+    version.trim().trim_start_matches('v').to_ascii_lowercase()
+}
+
+fn version_segments_cmp(left: &[u64], right: &[u64]) -> std::cmp::Ordering {
+    let len = left.len().max(right.len());
+    for index in 0..len {
+        let left_value = left.get(index).copied().unwrap_or(0);
+        let right_value = right.get(index).copied().unwrap_or(0);
+        match left_value.cmp(&right_value) {
+            std::cmp::Ordering::Equal => {}
+            ordering => return ordering,
+        }
+    }
+    std::cmp::Ordering::Equal
 }
 
 pub fn update_profile_toml(input: &str, update: &CreateProfileInput) -> AppResult<String> {

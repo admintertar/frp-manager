@@ -3,12 +3,13 @@ use std::time::Duration;
 
 use frp_manager_lib::app_state::AppState;
 use frp_manager_lib::commands::{
-    append_proxy_toml, clean_log_output, create_profile_toml, delete_proxy_toml,
-    list_profiles_with_runtime_state, profile_log_path, start_profile_by_id, update_profile_toml,
-    update_proxy_toml, AddProxyInput, AuthMethodInput, CreateProfileInput,
+    app_update_available, append_proxy_toml, clean_log_output, create_profile_toml,
+    delete_proxy_toml, list_profiles_with_runtime_state, profile_log_path, start_profile_by_id,
+    update_profile_toml, update_proxy_toml, AddProxyInput, AuthMethodInput, CreateProfileInput,
 };
 use frp_manager_lib::config_toml::parse_profile_toml;
 use frp_manager_lib::error::AppError;
+use frp_manager_lib::github_release::app_release_tag_from_latest_url;
 use frp_manager_lib::models::{ProxyType, RuntimeState};
 use frp_manager_lib::process_manager::ProcessRegistry;
 use frp_manager_lib::profile_store::ProfileStore;
@@ -61,6 +62,24 @@ fn clean_log_output_strips_ansi_color_sequences() {
     let cleaned = clean_log_output(raw);
 
     assert_eq!(cleaned, "2026-07-01 17:51:43.499 [I] connected\nplain");
+}
+
+#[test]
+fn app_update_available_compares_semver_release_tags() {
+    assert!(app_update_available("0.1.0", "v0.1.1"));
+    assert!(app_update_available("0.1.0", "0.2.0"));
+    assert!(!app_update_available("0.1.0", "v0.1.0"));
+    assert!(!app_update_available("0.1.0", "v0.0.4"));
+}
+
+#[test]
+fn app_release_tag_parses_github_latest_redirect_url() {
+    let tag = app_release_tag_from_latest_url(
+        "https://github.com/admintertar/frp-manager/releases/tag/v0.1.1",
+    )
+    .unwrap();
+
+    assert_eq!(tag, "v0.1.1");
 }
 
 #[tokio::test]

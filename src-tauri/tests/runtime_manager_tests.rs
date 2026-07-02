@@ -1,6 +1,9 @@
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use frp_manager_lib::github_release::{select_platform_asset, verify_asset_checksum, ReleaseAsset};
+use frp_manager_lib::github_release::{
+    frp_release_from_latest_url, select_checksums_asset, select_platform_asset,
+    verify_asset_checksum, ReleaseAsset,
+};
 use frp_manager_lib::runtime_manager::{current_platform, sha256_hex, RuntimeManager};
 use std::io::{Cursor, Write};
 use tar::{Builder, Header};
@@ -48,6 +51,32 @@ fn selects_windows_amd64_zip_asset() {
     let asset = select_platform_asset("0.69.1", "windows", "amd64", &assets).unwrap();
 
     assert_eq!(asset.name, "frp_0.69.1_windows_amd64.zip");
+}
+
+#[test]
+fn builds_runtime_release_assets_from_github_latest_redirect_url() {
+    let release = frp_release_from_latest_url(
+        "https://github.com/fatedier/frp/releases/tag/v0.69.1",
+        "darwin",
+        "arm64",
+    )
+    .unwrap();
+
+    assert_eq!(release.tag_name, "v0.69.1");
+
+    let asset = select_platform_asset("0.69.1", "darwin", "arm64", &release.assets).unwrap();
+    assert_eq!(asset.name, "frp_0.69.1_darwin_arm64.tar.gz");
+    assert_eq!(
+        asset.browser_download_url,
+        "https://github.com/fatedier/frp/releases/download/v0.69.1/frp_0.69.1_darwin_arm64.tar.gz"
+    );
+
+    let checksums = select_checksums_asset(&release.assets).unwrap();
+    assert_eq!(checksums.name, "frp_sha256_checksums.txt");
+    assert_eq!(
+        checksums.browser_download_url,
+        "https://github.com/fatedier/frp/releases/download/v0.69.1/frp_sha256_checksums.txt"
+    );
 }
 
 #[test]

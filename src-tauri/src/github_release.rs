@@ -3,11 +3,16 @@ use serde::{Deserialize, Serialize};
 use crate::error::{AppError, AppResult};
 use crate::runtime_manager::sha256_hex;
 
-pub const FRP_RELEASES_API: &str = "https://api.github.com/repos/fatedier/frp/releases/latest";
+pub const FRP_LATEST_RELEASE_URL: &str = "https://github.com/fatedier/frp/releases/latest";
+pub const APP_LATEST_RELEASE_URL: &str =
+    "https://github.com/admintertar/frp-manager/releases/latest";
+const FRP_RELEASE_DOWNLOAD_BASE: &str = "https://github.com/fatedier/frp/releases/download";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitHubRelease {
     pub tag_name: String,
+    #[serde(default)]
+    pub html_url: Option<String>,
     pub assets: Vec<ReleaseAsset>,
 }
 
@@ -17,14 +22,19 @@ pub struct ReleaseAsset {
     pub browser_download_url: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppLatestRelease {
+    pub tag_name: String,
+    pub html_url: String,
+}
+
 pub fn select_platform_asset(
     version: &str,
     os: &str,
     arch: &str,
     assets: &[ReleaseAsset],
 ) -> AppResult<ReleaseAsset> {
-    let extension = if os == "windows" { "zip" } else { "tar.gz" };
-    let expected = format!("frp_{version}_{os}_{arch}.{extension}");
+    let expected = platform_asset_name(version, os, arch);
     assets
         .iter()
         .find(|asset| asset.name == expected)
@@ -64,13 +74,28 @@ pub fn verify_asset_checksum(asset_name: &str, bytes: &[u8], checksums: &str) ->
     Ok(())
 }
 
-pub async fn fetch_latest_release() -> AppResult<GitHubRelease> {
-    let client = reqwest::Client::new();
+pub async fn fetch_latest_release_for_platform(
+    os: &str,
+    arch: &str,
+) -> AppResult<GitHubRelease> {
+    let html_url = fetch_latest_redirect_url(FRP_LATEST_RELEASE_URL).await?;
+    frp_release_from_latest_url(&html_url, os, arch)
+}
+
+pub async fn fetch_latest_app_release() -> AppResult<AppLatestRelease> {
+    let html_url = fetch_latest_redirect_url(APP_LATEST_RELEASE_URL).await?;
+    let tag_name = app_release_tag_from_latest_url(&html_url)?;
+    Ok(AppLatestRelease { tag_name, html_url })
+}
+
+async fn fetch_latest_redirect_url(url: &str) -> AppResult<String> {
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build()
+        .map_err(|err| AppError::Update(err.to_string()))?;
     let response = client
-        .get(FRP_RELEASES_API)
+        .get(url)
         .header("User-Agent", "frp-manager")
-        .header("Accept", "application/vnd.github+json")
-        .header("X-GitHub-Api-Version", "2022-11-28")
         .send()
         .await
         .map_err(|err| AppError::Update(err.to_string()))?;
@@ -79,10 +104,67 @@ pub async fn fetch_latest_release() -> AppResult<GitHubRelease> {
         return Err(AppError::Update(github_status_error(&response)));
     }
 
-    response
-        .json::<GitHubRelease>()
-        .await
-        .map_err(|err| AppError::Update(err.to_string()))
+    Ok(response.url().to_string())
+}
+
+pub fn frp_release_from_latest_url(url: &str, os: &str, arch: &str) -> AppResult<GitHubRelease> {
+    let tag_name = release_tag_from_latest_url(url)?;
+    let version = tag_name.trim_start_matches('v');
+    let asset_name = platform_asset_name(version, os, arch);
+    let checksums_name = "frp_sha256_checksums.txt".to_string();
+
+    Ok(GitHubRelease {
+        tag_name: tag_name.clone(),
+        html_url: Some(url.to_string()),
+        assets: vec![
+            ReleaseAsset {
+                name: asset_name.clone(),
+                browser_download_url: release_asset_download_url(&tag_name, &asset_name),
+            },
+            ReleaseAsset {
+                name: checksums_name.clone(),
+                browser_download_url: release_asset_download_url(&tag_name, &checksums_name),
+            },
+        ],
+    })
+}
+
+pub fn app_release_tag_from_latest_url(url: &str) -> AppResult<String> {
+    release_tag_from_latest_url(url)
+}
+
+fn release_tag_from_latest_url(url: &str) -> AppResult<String> {
+    let parsed = reqwest::Url::parse(url)
+        .map_err(|err| AppError::Update(format!("invalid release URL: {err}")))?;
+    let segments = parsed
+        .path_segments()
+        .ok_or_else(|| AppError::Update("latest release URL has no path".into()))?
+        .collect::<Vec<_>>();
+
+    let Some(tag_index) = segments
+        .windows(2)
+        .position(|window| window == ["releases", "tag"])
+        .map(|index| index + 2)
+    else {
+        return Err(AppError::Update(format!(
+            "latest release tag not found in {url}"
+        )));
+    };
+
+    segments
+        .get(tag_index)
+        .filter(|tag| !tag.is_empty())
+        .map(|tag| (*tag).to_string())
+        .ok_or_else(|| AppError::Update(format!("latest release tag not found in {url}")))
+}
+
+fn platform_asset_name(version: &str, os: &str, arch: &str) -> String {
+    let extension = if os == "windows" { "zip" } else { "tar.gz" };
+    format!("frp_{version}_{os}_{arch}.{extension}")
+}
+
+fn release_asset_download_url(tag: &str, asset_name: &str) -> String {
+    format!("{FRP_RELEASE_DOWNLOAD_BASE}/{tag}/{asset_name}")
 }
 
 pub async fn download_url(url: &str) -> AppResult<Vec<u8>> {
@@ -114,7 +196,7 @@ fn github_status_error(response: &reqwest::Response) -> String {
             .get("x-ratelimit-remaining")
             .and_then(|value| value.to_str().ok());
         if remaining == Some("0") {
-            return "GitHub API rate limit reached. Please try again later.".into();
+            return "GitHub request rate limit reached. Please try again later.".into();
         }
         return "GitHub API refused the request (403 Forbidden). Please try again later.".into();
     }

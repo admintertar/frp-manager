@@ -4,13 +4,16 @@ import { ProfileSidebar } from "./components/ProfileSidebar";
 import { ProfileWorkbench } from "./components/ProfileWorkbench";
 import { ProxyEditor } from "./components/ProxyEditor";
 import { RuntimeSettings } from "./components/RuntimeSettings";
+import { AppUpdatePrompt } from "./components/AppUpdatePrompt";
 import {
   addProxy,
+  checkAppUpdate,
   createProfile,
   deleteProfile,
   deleteProxy,
   getProfile,
   getRuntimeStatus,
+  listenAppUpdateCheckRequested,
   listenProfileStateChanged,
   listProfiles,
   readProfileLogs,
@@ -22,6 +25,7 @@ import {
 } from "./lib/api";
 import type {
   AddProxyInput,
+  AppUpdateCheck,
   CreateProfileInput,
   Profile,
   ProfileSummary,
@@ -32,6 +36,8 @@ import type {
   UpdateProfileInput,
 } from "./types";
 import "./styles.css";
+
+const APP_UPDATE_IGNORED_VERSION_KEY = "frp-manager.ignored-app-update-version";
 
 export default function App() {
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
@@ -45,6 +51,8 @@ export default function App() {
   const [proxyOpen, setProxyOpen] = useState(false);
   const [editingProxy, setEditingProxy] = useState<ProxyConfig | null>(null);
   const [runtimeOpen, setRuntimeOpen] = useState(false);
+  const [appUpdateOpen, setAppUpdateOpen] = useState(false);
+  const [appUpdate, setAppUpdate] = useState<AppUpdateCheck | null>(null);
   const [profileLogs, setProfileLogs] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -124,9 +132,33 @@ export default function App() {
     }
   }
 
+  async function checkForAppUpdate(manual = false) {
+    try {
+      const update = await checkAppUpdate();
+      if (!update.updateAvailable) return;
+
+      const ignoredVersion = window.localStorage.getItem(
+        APP_UPDATE_IGNORED_VERSION_KEY,
+      );
+      if (!manual && ignoredVersion === update.latestVersion) return;
+
+      setAppUpdate(update);
+      setAppUpdateOpen(true);
+      setError(null);
+    } catch (err) {
+      if (manual) setError(formatInvokeError(err));
+    }
+  }
+
+  function ignoreAppUpdate(version: string) {
+    window.localStorage.setItem(APP_UPDATE_IGNORED_VERSION_KEY, version);
+    setAppUpdateOpen(false);
+  }
+
   useEffect(() => {
     void refreshProfiles();
     void refreshRuntimeInfo();
+    void checkForAppUpdate(false);
   }, []);
 
   useEffect(() => {
@@ -134,6 +166,30 @@ export default function App() {
       void refreshProfiles(undefined, true);
     }, 2500);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void listenAppUpdateCheckRequested(() => {
+      void checkForAppUpdate(true);
+    })
+      .then((dispose) => {
+        if (disposed) {
+          dispose?.();
+          return;
+        }
+        unlisten = dispose;
+      })
+      .catch((err) => {
+        if (!disposed) setError(formatInvokeError(err));
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -473,6 +529,12 @@ export default function App() {
         status={runtimeStatus}
         onClose={() => setRuntimeOpen(false)}
         onStatusChange={setRuntimeStatus}
+      />
+      <AppUpdatePrompt
+        open={appUpdateOpen}
+        update={appUpdate}
+        onClose={() => setAppUpdateOpen(false)}
+        onIgnore={ignoreAppUpdate}
       />
     </main>
   );

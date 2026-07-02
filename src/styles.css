@@ -995,6 +995,32 @@ button {
   grid-column: 1 / -1;
 }
 
+.app-update-modal {
+  width: min(420px, calc(100vw - 48px));
+}
+
+.app-update-copy {
+  background: var(--panel-muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.app-update-copy span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.app-update-copy strong {
+  font-size: 16px;
+}
+
+.app-update-actions {
+  justify-content: space-between;
+}
+
 @media (max-width: 760px) {
   .app-shell {
     grid-template-columns: 1fr;

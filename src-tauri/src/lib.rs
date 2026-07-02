@@ -59,7 +59,8 @@ pub fn run() {
             commands::get_runtime_info,
             commands::get_runtime_status,
             commands::check_runtime_update,
-            commands::install_runtime
+            commands::install_runtime,
+            commands::check_app_update
         ])
         .build(tauri::generate_context!())
         .expect("error while running FRP Manager");
