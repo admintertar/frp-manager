@@ -81,6 +81,28 @@ pnpm test:proxy-types
 pnpm test:app-name
 ```
 
+### GitHub Release Packaging
+
+The repository includes a GitHub Actions release workflow at `.github/workflows/release.yml`.
+
+It can be triggered manually from the Actions tab or by pushing a version tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The workflow first runs TypeScript checks, frontend build, source tests, and Rust tests. It then builds draft release packages for:
+
+- macOS Apple Silicon (`aarch64-apple-darwin`)
+- macOS Intel (`x86_64-apple-darwin`)
+- Windows x64
+- Linux x64 on Ubuntu 22.04
+
+The macOS build keeps the current app icon and uses ad-hoc signing in CI when no Apple signing certificate is configured. For public distribution, add Apple Developer ID signing and notarization secrets later. Linux packaging installs WebKitGTK 4.1 and appindicator development libraries so the Tauri window and tray/menu integration can compile.
+
+The app package still does not include `frpc`; users install or update the matching runtime from Runtime Settings after launching FRP Manager.
+
 ### Data Storage
 
 On macOS, app data is stored under:
@@ -180,6 +202,28 @@ pnpm test:runtime-management
 pnpm test:proxy-types
 pnpm test:app-name
 ```
+
+### GitHub 发布打包
+
+仓库里已经包含 GitHub Actions 发布 workflow：`.github/workflows/release.yml`。
+
+可以在 Actions 页面手动触发，也可以推送版本 tag 触发：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+workflow 会先执行 TypeScript 检查、前端构建、源码测试和 Rust 测试，然后生成 draft release 包，覆盖：
+
+- macOS Apple Silicon (`aarch64-apple-darwin`)
+- macOS Intel (`x86_64-apple-darwin`)
+- Windows x64
+- Linux x64，基于 Ubuntu 22.04
+
+macOS 包会继续使用现在的应用图标；CI 里没有 Apple 证书时会使用 ad-hoc signing。后面如果要正式公开分发，再补 Apple Developer ID 签名和 notarization secrets。Linux 打包会安装 WebKitGTK 4.1 和 appindicator 开发库，保证 Tauri 窗口和托盘/菜单功能可以编译。
+
+应用安装包仍然不会内置 `frpc`；用户启动 FRP Manager 后，在 Runtime Settings 里下载或升级当前系统对应的 frpc runtime。
 
 ### 数据存储
 

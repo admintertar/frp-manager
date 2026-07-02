@@ -1,0 +1,168 @@
+name: Release Desktop Apps
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf \
+            xdg-utils
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "lts/*"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Run source tests
+        shell: bash
+        run: |
+          for test_file in test/*.test.mjs; do
+            node "$test_file"
+          done
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  release:
+    name: Build ${{ matrix.label }}
+    needs: test
+    runs-on: ${{ matrix.platform }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macos-arm64
+            platform: macos-latest
+            args: "--target aarch64-apple-darwin"
+            rust_target: aarch64-apple-darwin
+          - label: macos-x64
+            platform: macos-latest
+            args: "--target x86_64-apple-darwin"
+            rust_target: x86_64-apple-darwin
+          - label: windows-x64
+            platform: windows-latest
+            args: ""
+            rust_target: ""
+          - label: linux-x64
+            platform: ubuntu-22.04
+            args: ""
+            rust_target: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf \
+            xdg-utils
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "lts/*"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: ${{ matrix.label }}
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and upload release bundle
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_SIGNING_IDENTITY: ${{ startsWith(matrix.label, 'macos-') && '-' || '' }}
+        with:
+          args: ${{ matrix.args }}
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}
+          releaseName: FRP Manager ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}
+          releaseBody: |
+            FRP Manager desktop release.
+
+            Packages are built for macOS, Windows, and Linux. The frpc runtime is not bundled; install or update it from Runtime Settings inside the app.
+          releaseDraft: true
+          prerelease: false
+          includeDebug: false
+          releaseAssetNamePattern: "FRP-Manager_[version]_[platform]_[arch][setup][ext]"

@@ -22,6 +22,7 @@
     "test:profile-sync": "node test/profile-state-sync.test.mjs",
     "test:sidebar-style": "node test/sidebar-runtime-style.test.mjs",
     "test:runtime-management": "node test/runtime-management.test.mjs",
+    "test:release-workflow": "node test/release-workflow.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

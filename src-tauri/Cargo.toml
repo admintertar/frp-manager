@@ -1,7 +1,7 @@
 [package]
 name = "frp-manager"
 version = "0.1.0"
-description = "A Tauri App"
+description = "Desktop client for managing frpc profiles."
 authors = ["you"]
 edition = "2021"
 
