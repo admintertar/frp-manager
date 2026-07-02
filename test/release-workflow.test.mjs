@@ -24,6 +24,8 @@ for (const label of ["macos-arm64", "macos-x64", "windows-x64", "linux-x64"]) {
 assert(workflow.includes("workflow_dispatch:"), "release workflow must support manual runs");
 assert(workflow.includes('"v*"'), "release workflow must run for v* tags");
 assert(workflow.includes("tauri-apps/tauri-action@v1"), "workflow must use tauri-action");
+assert(workflow.includes("pnpm/action-setup@v6"), "workflow must use pnpm/action-setup v6");
+assert(!workflow.includes("pnpm/action-setup@v4"), "workflow must not use deprecated pnpm/action-setup v4");
 assert(workflow.includes("pnpm install --frozen-lockfile"), "workflow must use frozen pnpm lockfile");
 assert(workflow.includes("pnpm typecheck"), "workflow must run TypeScript checks");
 assert(workflow.includes("pnpm build"), "workflow must build the frontend");
