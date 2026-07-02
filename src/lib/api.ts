@@ -154,11 +154,20 @@ export function checkAppUpdate(): Promise<AppUpdateCheck> {
     assetName: "FRP-Manager_0.0.3_darwin_aarch64.dmg",
     downloadUrl:
       "https://github.com/admintertar/frp-manager/releases/download/v0.0.3/FRP-Manager_0.0.3_darwin_aarch64.dmg",
+    installerPath: "",
+    downloaded: false,
   });
 }
 
-export function installAppUpdate(): Promise<AppUpdateInstall> {
-  return invokeOrFallback("install_app_update", undefined, {
+export function downloadAppUpdate(): Promise<AppUpdateInstall> {
+  return invokeOrFallback("download_app_update", undefined, {
+    assetName: "FRP-Manager_0.0.3_darwin_aarch64.dmg",
+    installerPath: "",
+  });
+}
+
+export function openAppUpdateInstaller(): Promise<AppUpdateInstall> {
+  return invokeOrFallback("open_app_update_installer", undefined, {
     assetName: "FRP-Manager_0.0.3_darwin_aarch64.dmg",
     installerPath: "",
   });

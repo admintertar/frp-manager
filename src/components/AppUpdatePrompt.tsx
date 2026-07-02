@@ -1,6 +1,6 @@
-import { Download, X } from "lucide-react";
-import { useState } from "react";
-import { installAppUpdate } from "../lib/api";
+import { Download, ExternalLink, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { downloadAppUpdate, openAppUpdateInstaller } from "../lib/api";
 import type { AppUpdateCheck } from "../types";
 
 interface Props {
@@ -11,8 +11,20 @@ interface Props {
 }
 
 export function AppUpdatePrompt({ update, open, onClose, onIgnore }: Props) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"download" | "open" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [installerPath, setInstallerPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    setError(null);
+    setBusy(null);
+    if (!open || !update) {
+      setInstallerPath(null);
+      return;
+    }
+    setInstallerPath(update.downloaded ? update.installerPath : null);
+  }, [open, update?.assetName, update?.downloaded, update?.installerPath]);
+
   if (!open || !update) return null;
   const title = update.updateAvailable
     ? "New version available"
@@ -20,18 +32,25 @@ export function AppUpdatePrompt({ update, open, onClose, onIgnore }: Props) {
   const latestLabel = update.updateAvailable
     ? `FRP Manager ${update.latestVersion}`
     : "No newer release was found";
+  const idlePrimaryLabel = installerPath ? "Open" : "Download";
+  const primaryLabel = busy === "download" ? "Downloading..." : idlePrimaryLabel;
 
-  async function updateNow() {
+  async function handlePrimaryAction() {
     if (!update) return;
-    setBusy(true);
+    const nextAction = installerPath ? "open" : "download";
+    setBusy(nextAction);
     setError(null);
     try {
-      await installAppUpdate();
-      onClose();
+      if (installerPath) {
+        await openAppUpdateInstaller();
+      } else {
+        const result = await downloadAppUpdate();
+        setInstallerPath(result.installerPath);
+      }
     } catch (err) {
       setError(formatError(err));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -64,12 +83,16 @@ export function AppUpdatePrompt({ update, open, onClose, onIgnore }: Props) {
         </div>
         {error ? <div className="error-banner">{error}</div> : null}
 
-        <div className="modal-actions app-update-actions">
+        <div
+          className={`modal-actions app-update-actions ${
+            update.updateAvailable ? "" : "app-update-actions-single"
+          }`}
+        >
           <button
             type="button"
             className="command-button"
             onClick={onClose}
-            disabled={busy}
+            disabled={busy !== null}
           >
             {update.updateAvailable ? "Later" : "Close"}
           </button>
@@ -79,18 +102,18 @@ export function AppUpdatePrompt({ update, open, onClose, onIgnore }: Props) {
                 type="button"
                 className="command-button"
                 onClick={() => onIgnore(update.latestVersion)}
-                disabled={busy}
+                disabled={busy !== null}
               >
                 Ignore this version
               </button>
               <button
                 type="button"
                 className="command-button primary"
-                onClick={() => void updateNow()}
-                disabled={busy}
+                onClick={() => void handlePrimaryAction()}
+                disabled={busy !== null}
               >
-                <Download size={16} />
-                {busy ? "Downloading..." : "Update"}
+                {installerPath ? <ExternalLink size={16} /> : <Download size={16} />}
+                {primaryLabel}
               </button>
             </>
           ) : null}
