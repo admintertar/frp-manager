@@ -12,6 +12,9 @@ use tokio::time::{sleep, timeout, Duration, Instant};
 
 use crate::error::{AppError, AppResult};
 
+#[cfg(target_os = "windows")]
+const WINDOWS_CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum ProfileProcessState {
@@ -59,14 +62,17 @@ impl ProcessRegistry {
         let log_path = current_log_path(working_dir);
         prepare_log_file(&log_path)?;
 
-        let mut child = Command::new(frpc_path)
+        let mut command = Command::new(frpc_path);
+        command
             .arg("-c")
             .arg(config_path)
             .current_dir(working_dir)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()?;
+            .kill_on_drop(true);
+        apply_platform_process_options(&mut command);
+
+        let mut child = command.spawn()?;
         let stdout_drain = child
             .stdout
             .take()
@@ -224,6 +230,14 @@ fn prepare_log_file(log_path: &Path) -> std::io::Result<()> {
         .open(log_path)?;
     Ok(())
 }
+
+#[cfg(target_os = "windows")]
+fn apply_platform_process_options(command: &mut Command) {
+    command.creation_flags(WINDOWS_CREATE_NO_WINDOW);
+}
+
+#[cfg(not(target_os = "windows"))]
+fn apply_platform_process_options(_command: &mut Command) {}
 
 fn spawn_pipe_drain<R>(mut reader: R, log_path: PathBuf) -> JoinHandle<()>
 where
