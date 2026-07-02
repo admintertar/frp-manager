@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { sanitizePortInput } from "../lib/portInput";
 import { proxyTypeOptions } from "../lib/proxyTypeOptions";
 import type { AddProxyInput, ProxyConfig, ProxyType } from "../types";
 
@@ -225,7 +226,10 @@ export function ProxyEditor({
               value={localPort}
               disabled={busy}
               inputMode="numeric"
-              onChange={(event) => setLocalPort(event.target.value)}
+              pattern="[0-9]*"
+              onChange={(event) =>
+                setLocalPort(sanitizePortInput(event.target.value))
+              }
             />
           </label>
 
@@ -236,7 +240,10 @@ export function ProxyEditor({
                 value={remotePort}
                 disabled={busy}
                 inputMode="numeric"
-                onChange={(event) => setRemotePort(event.target.value)}
+                pattern="[0-9]*"
+                onChange={(event) =>
+                  setRemotePort(sanitizePortInput(event.target.value))
+                }
               />
             </label>
           ) : (

@@ -9,8 +9,14 @@ test("desktop bundle uses the FRP Manager app name", async () => {
   const pkg = JSON.parse(
     await readFile(new URL("../package.json", import.meta.url), "utf8"),
   );
+  const cargoToml = await readFile(
+    new URL("../src-tauri/Cargo.toml", import.meta.url),
+    "utf8",
+  );
 
   assert.equal(config.productName, "FRP Manager");
   assert.equal(config.app.windows[0].title, "FRP Manager");
   assert.equal(pkg.name, "frp-manager");
+  assert.match(cargoToml, /^name = "frp-manager"$/m);
+  assert.doesNotMatch(cargoToml, /^name = "desktop"$/m);
 });

@@ -8,7 +8,7 @@ use tokio::fs::OpenOptions;
 use tokio::io::{self, AsyncRead};
 use tokio::process::{Child, Command};
 use tokio::task::JoinHandle;
-use tokio::time::{sleep, timeout, Duration, Instant};
+use tokio::time::{timeout, Duration};
 
 use crate::error::{AppError, AppResult};
 
@@ -250,15 +250,9 @@ where
 async fn detect_immediate_exit(
     child: &mut Child,
 ) -> std::io::Result<Option<std::process::ExitStatus>> {
-    let deadline = Instant::now() + Duration::from_secs(1);
-    loop {
-        if let Some(status) = child.try_wait()? {
-            return Ok(Some(status));
-        }
-        if Instant::now() >= deadline {
-            return Ok(None);
-        }
-        sleep(Duration::from_millis(50)).await;
+    match timeout(Duration::from_secs(1), child.wait()).await {
+        Ok(status) => status.map(Some),
+        Err(_) => Ok(None),
     }
 }
 

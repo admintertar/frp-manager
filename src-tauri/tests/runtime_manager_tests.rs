@@ -96,6 +96,27 @@ fn installs_frpc_from_tar_gz_archive() {
 }
 
 #[test]
+fn clears_stale_metadata_when_installed_runtime_file_is_missing() {
+    let dir = tempdir().unwrap();
+    let manager = RuntimeManager::new(dir.path().to_path_buf());
+    let (os, arch) = current_platform();
+    let asset_name = format!("frp_0.69.1_{os}_{arch}.tar.gz");
+    let archive = make_tar_gz("frp_0.69.1/frpc", b"#!/bin/sh\necho 0.69.1\n");
+    let status = manager
+        .install_runtime_archive("0.69.1", os, arch, &asset_name, &archive)
+        .unwrap();
+    let runtime_path = status.runtime_path.unwrap();
+    std::fs::remove_file(runtime_path).unwrap();
+
+    let refreshed = manager.runtime_status().unwrap();
+
+    assert!(!refreshed.installed);
+    assert_eq!(refreshed.current_version, None);
+    assert_eq!(refreshed.runtime_path, None);
+    assert_eq!(manager.read_runtime_metadata().unwrap(), None);
+}
+
+#[test]
 fn installs_frpc_from_windows_zip_archive() {
     let dir = tempdir().unwrap();
     let manager = RuntimeManager::new(dir.path().to_path_buf());

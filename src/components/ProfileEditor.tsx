@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { sanitizePortInput } from "../lib/portInput";
 import type { CreateProfileInput, Profile, ProfileAuthMethod } from "../types";
 
 interface Props {
@@ -9,6 +10,8 @@ interface Props {
   onClose: () => void;
   onSubmit: (input: CreateProfileInput) => Promise<void>;
 }
+
+const authMethods: ProfileAuthMethod[] = ["token", "oidc"];
 
 export function ProfileEditor({
   open,
@@ -184,22 +187,38 @@ export function ProfileEditor({
               value={serverPort}
               disabled={busy}
               inputMode="numeric"
-              onChange={(event) => setServerPort(event.target.value)}
+              pattern="[0-9]*"
+              onChange={(event) =>
+                setServerPort(sanitizePortInput(event.target.value))
+              }
             />
           </label>
-          <label>
-            Auth method
-            <span className="select-wrapper">
-              <select
-                value={authMethod}
-                disabled={busy}
-                onChange={(event) =>
-                  setAuthMethod(event.target.value as ProfileAuthMethod)
-                }
-              >
-                <option value="token">token</option>
-                <option value="oidc">oidc</option>
-              </select>
+          <label className="proxy-type-field">
+            <span>Auth method</span>
+            <span
+              className="proxy-type-options auth-method-options"
+              role="group"
+              aria-label="Auth method"
+              style={{
+                gridTemplateColumns: `repeat(${authMethods.length}, minmax(0, 1fr))`,
+              }}
+            >
+              {authMethods.map((method) => (
+                <button
+                  className={
+                    authMethod === method
+                      ? "proxy-type-option selected"
+                      : "proxy-type-option"
+                  }
+                  disabled={busy}
+                  key={method}
+                  type="button"
+                  aria-pressed={authMethod === method}
+                  onClick={() => setAuthMethod(method)}
+                >
+                  {method}
+                </button>
+              ))}
             </span>
           </label>
 

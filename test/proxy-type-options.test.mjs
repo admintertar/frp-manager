@@ -39,6 +39,18 @@ test("proxy editor uses a custom type control instead of native select", async (
   assert.match(source, /className="proxy-type-options"/);
 });
 
+test("profile editor uses the same custom control for auth method", async () => {
+  const source = await readFile(
+    new URL("../src/components/ProfileEditor.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.doesNotMatch(source, /<select[\s>]/);
+  assert.match(source, /aria-label="Auth method"/);
+  assert.match(source, /auth-method-options/);
+  assert.match(source, /proxy-type-option selected/);
+});
+
 test("selected proxy type has a colored selected state", async () => {
   const css = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
   const selectedBlock = css.match(

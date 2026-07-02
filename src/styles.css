@@ -417,6 +417,18 @@ button {
   border-color: #164fae;
 }
 
+.command-button.primary:disabled {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #ffffff;
+}
+
+.command-button.primary:disabled:hover {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #ffffff;
+}
+
 .command-button.danger {
   background: #fff7f7;
   border-color: #efb4b4;
@@ -847,16 +859,17 @@ button {
 }
 
 .runtime-modal {
-  width: min(560px, calc(100vw - 48px));
+  width: min(720px, calc(100vw - 48px));
 }
 
 .runtime-modal .modal-actions {
-  flex-wrap: wrap;
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .runtime-modal .modal-actions .command-button {
   min-width: 0;
+  width: 100%;
   white-space: nowrap;
 }
 
@@ -901,6 +914,12 @@ button {
 }
 
 .runtime-status-missing {
+  background: var(--red-soft);
+  border-color: #e0aaa0;
+  color: var(--red);
+}
+
+.runtime-status-error {
   background: var(--red-soft);
   border-color: #e0aaa0;
   color: var(--red);

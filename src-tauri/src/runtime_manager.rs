@@ -119,7 +119,17 @@ impl RuntimeManager {
             });
         };
 
-        if metadata.os != platform.os || metadata.arch != platform.arch || !metadata.path.exists() {
+        if metadata.os != platform.os || metadata.arch != platform.arch {
+            return Ok(RuntimeStatus {
+                installed: false,
+                current_version: None,
+                runtime_path: None,
+                platform,
+            });
+        }
+
+        if !metadata.path.exists() {
+            self.clear_metadata()?;
             return Ok(RuntimeStatus {
                 installed: false,
                 current_version: None,
@@ -236,6 +246,14 @@ impl RuntimeManager {
             AppError::Runtime(format!("serialize runtime metadata failed: {err}"))
         })?;
         std::fs::write(self.metadata_path(), raw)?;
+        Ok(())
+    }
+
+    fn clear_metadata(&self) -> AppResult<()> {
+        let path = self.metadata_path();
+        if path.exists() {
+            std::fs::remove_file(path)?;
+        }
         Ok(())
     }
 

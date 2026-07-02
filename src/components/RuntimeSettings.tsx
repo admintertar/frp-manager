@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState } from "react";
-import { checkRuntimeUpdate, installRuntime } from "../lib/api";
+import { checkRuntimeUpdate, getRuntimeStatus, installRuntime } from "../lib/api";
 import type { RuntimeStatus, RuntimeUpdateCheck } from "../types";
 
 interface Props {
@@ -38,6 +38,8 @@ export function RuntimeSettings({
   useEffect(() => {
     if (!open) return;
     setLocalStatus(status);
+    setResult(null);
+    void refreshRuntimeDetails();
 
     const previouslyFocused =
       document.activeElement instanceof HTMLElement
@@ -63,12 +65,49 @@ export function RuntimeSettings({
     setBusy("check");
     setError(null);
     try {
-      setResult(await checkRuntimeUpdate());
+      const update = await checkRuntimeUpdate();
+      applyUpdateCheck(update);
     } catch (err) {
       setError(formatError(err));
     } finally {
       setBusy(null);
     }
+  }
+
+  async function refreshRuntimeDetails() {
+    const synced = await refreshStatus();
+    if (!synced) return;
+
+    try {
+      const update = await checkRuntimeUpdate();
+      setResult(update);
+      applyRuntimeStatus(statusFromUpdate(update));
+    } catch (err) {
+      setError(formatError(err));
+    }
+  }
+
+  async function refreshStatus(): Promise<boolean> {
+    setError(null);
+    try {
+      const next = await getRuntimeStatus();
+      setLocalStatus(next);
+      onStatusChange(next);
+      return true;
+    } catch (err) {
+      setError(formatError(err));
+      return false;
+    }
+  }
+
+  function applyUpdateCheck(update: RuntimeUpdateCheck) {
+    setResult(update);
+    applyRuntimeStatus(statusFromUpdate(update));
+  }
+
+  function applyRuntimeStatus(next: RuntimeStatus) {
+    setLocalStatus(next);
+    onStatusChange(next);
   }
 
   async function install() {
@@ -101,18 +140,22 @@ export function RuntimeSettings({
   }
 
   const installed = localStatus.installed;
-  const statusLabel = result
-    ? result.updateAvailable
-      ? "Update available"
-      : "Runtime is current"
-    : installed
-      ? "Runtime installed"
-      : "frpc runtime not installed";
-  const statusClass = !installed
-    ? "runtime-status runtime-status-missing"
-    : result?.updateAvailable
-      ? "runtime-status runtime-status-update"
-      : "runtime-status";
+  const statusMessage = error
+    ? error
+    : result
+      ? result.updateAvailable
+        ? "Update available"
+        : "Runtime is current"
+      : installed
+        ? "Runtime installed"
+        : "frpc runtime not installed";
+  const statusClass = error
+    ? "runtime-status runtime-status-error"
+    : !installed
+      ? "runtime-status runtime-status-missing"
+      : result?.updateAvailable
+        ? "runtime-status runtime-status-update"
+        : "runtime-status";
   const actionLabel = installed ? "Update" : "Download";
 
   return (
@@ -139,15 +182,13 @@ export function RuntimeSettings({
           </button>
         </header>
 
-        {error ? <div className="error-banner">{error}</div> : null}
-
         <div className={statusClass}>
-          {!installed || result?.updateAvailable ? (
+          {error || !installed || result?.updateAvailable ? (
             <AlertCircle size={18} />
           ) : (
             <CheckCircle2 size={18} />
           )}
-          <strong>{statusLabel}</strong>
+          <strong>{statusMessage}</strong>
         </div>
 
         <div className="runtime-result-grid">
@@ -181,6 +222,7 @@ export function RuntimeSettings({
 
         <div className="modal-actions">
           <button type="button" className="command-button" onClick={onClose}>
+            <X size={16} />
             Close
           </button>
           <button
@@ -223,4 +265,13 @@ function formatError(err: unknown): string {
     if (typeof message === "string") return message;
   }
   return String(err);
+}
+
+function statusFromUpdate(update: RuntimeUpdateCheck): RuntimeStatus {
+  return {
+    installed: update.installed,
+    currentVersion: update.currentVersion,
+    runtimePath: update.runtimePath,
+    platform: update.platform,
+  };
 }
