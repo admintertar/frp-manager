@@ -52,6 +52,8 @@ pub struct AppUpdateCheck {
     pub release_url: String,
     pub asset_name: String,
     pub download_url: String,
+    pub installer_path: PathBuf,
+    pub downloaded: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -360,40 +362,58 @@ pub async fn install_runtime(state: State<'_, AppState>) -> AppResult<RuntimeSta
 }
 
 #[tauri::command]
-pub async fn check_app_update() -> AppResult<AppUpdateCheck> {
-    latest_app_update_check().await
+pub async fn check_app_update(app: AppHandle) -> AppResult<AppUpdateCheck> {
+    latest_app_update_check(&app).await
 }
 
 #[tauri::command]
-pub async fn install_app_update(app: AppHandle) -> AppResult<AppUpdateInstall> {
-    let update = latest_app_update_check().await?;
+pub async fn download_app_update(app: AppHandle) -> AppResult<AppUpdateInstall> {
+    let update = latest_app_update_check(&app).await?;
     if !update.update_available {
         return Err(AppError::Update("FRP Manager is already up to date.".into()));
     }
 
-    let installer_bytes = download_url(&update.download_url).await?;
-    let installer_dir = app
-        .path()
-        .download_dir()
-        .map_err(|err| AppError::Update(format!("resolve downloads directory failed: {err}")))?
-        .join("FRP Manager");
-    fs::create_dir_all(&installer_dir)?;
-    let installer_path = installer_dir.join(&update.asset_name);
-    fs::write(&installer_path, installer_bytes)?;
-    make_app_installer_openable(&installer_path)?;
-    tauri_plugin_opener::open_path(&installer_path, None::<&str>)
+    if !update.downloaded {
+        let installer_bytes = download_url(&update.download_url).await?;
+        let installer_dir = update
+            .installer_path
+            .parent()
+            .ok_or_else(|| AppError::Update("installer path has no parent directory".into()))?;
+        fs::create_dir_all(installer_dir)?;
+        fs::write(&update.installer_path, installer_bytes)?;
+    }
+    make_app_installer_openable(&update.installer_path)?;
+
+    Ok(AppUpdateInstall {
+        asset_name: update.asset_name,
+        installer_path: update.installer_path,
+    })
+}
+
+#[tauri::command]
+pub async fn open_app_update_installer(app: AppHandle) -> AppResult<AppUpdateInstall> {
+    let update = latest_app_update_check(&app).await?;
+    if !update.downloaded {
+        return Err(AppError::Update(
+            "Download the FRP Manager installer before opening it.".into(),
+        ));
+    }
+
+    make_app_installer_openable(&update.installer_path)?;
+    tauri_plugin_opener::open_path(&update.installer_path, None::<&str>)
         .map_err(|err| AppError::Update(format!("open installer failed: {err}")))?;
 
     Ok(AppUpdateInstall {
         asset_name: update.asset_name,
-        installer_path,
+        installer_path: update.installer_path,
     })
 }
 
-async fn latest_app_update_check() -> AppResult<AppUpdateCheck> {
+async fn latest_app_update_check(app: &AppHandle) -> AppResult<AppUpdateCheck> {
     let release = fetch_latest_app_release().await?;
     let current_version = env!("CARGO_PKG_VERSION").to_string();
     let latest_version = release.tag_name.trim_start_matches('v').to_string();
+    let installer_path = app_update_installer_path(app, &release.asset_name)?;
 
     Ok(AppUpdateCheck {
         update_available: app_update_available(&current_version, &latest_version),
@@ -402,6 +422,8 @@ async fn latest_app_update_check() -> AppResult<AppUpdateCheck> {
         release_url: release.html_url,
         asset_name: release.asset_name,
         download_url: release.download_url,
+        downloaded: installer_path.exists(),
+        installer_path,
     })
 }
 
@@ -467,6 +489,15 @@ fn make_app_installer_openable(path: &Path) -> AppResult<()> {
     }
 
     Ok(())
+}
+
+fn app_update_installer_path(app: &AppHandle, asset_name: &str) -> AppResult<PathBuf> {
+    let installer_dir = app
+        .path()
+        .download_dir()
+        .map_err(|err| AppError::Update(format!("resolve downloads directory failed: {err}")))?
+        .join("FRP Manager");
+    Ok(installer_dir.join(asset_name))
 }
 
 pub fn update_profile_toml(input: &str, update: &CreateProfileInput) -> AppResult<String> {
