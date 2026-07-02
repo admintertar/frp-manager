@@ -28,6 +28,7 @@ assert(workflow.includes("pnpm/action-setup@v6"), "workflow must use pnpm/action
 assert(!workflow.includes("pnpm/action-setup@v4"), "workflow must not use deprecated pnpm/action-setup v4");
 assert(workflow.includes("prepare-release:"), "workflow must prepare the GitHub release before matrix builds");
 assert(workflow.includes("gh release create \"$RELEASE_TAG\""), "workflow must create the release once before upload jobs");
+assert(workflow.includes("GH_REPO: ${{ github.repository }}"), "prepare-release gh commands must not depend on local git repo discovery");
 assert(workflow.includes("secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN"), "workflow must allow a PAT fallback for release publishing");
 assert(workflow.includes("contents: write"), "release jobs need contents write permission");
 assert(workflow.includes("pnpm install --frozen-lockfile"), "workflow must use frozen pnpm lockfile");
