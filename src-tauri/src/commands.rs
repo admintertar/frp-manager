@@ -285,7 +285,7 @@ pub async fn read_profile_logs(
     if !log_path.exists() {
         return Ok(String::new());
     }
-    Ok(clean_log_output(&fs::read_to_string(log_path)?))
+    Ok(fs::read_to_string(log_path)?)
 }
 
 #[tauri::command]

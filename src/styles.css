@@ -671,6 +671,44 @@ button {
   min-height: 120px;
   overflow: auto;
   padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-token {
+  color: inherit;
+}
+
+.log-token-bold {
+  font-weight: 700;
+}
+
+.log-token-red {
+  color: #f87171;
+}
+
+.log-token-green {
+  color: #86efac;
+}
+
+.log-token-yellow {
+  color: #fde68a;
+}
+
+.log-token-blue {
+  color: #93c5fd;
+}
+
+.log-token-magenta {
+  color: #f0abfc;
+}
+
+.log-token-cyan {
+  color: #67e8f9;
+}
+
+.log-token-white {
+  color: #f8fafc;
 }
 
 .modal-backdrop {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Edit3, Play, RefreshCw, RotateCw, Square } from "lucide-react";
+import { parseAnsiLogLine, type AnsiLogSegment } from "../lib/ansiLog";
 import type { Profile, ProfileSummary, ProxyConfig, RuntimeState } from "../types";
 import { ProxyTable } from "./ProxyTable";
 
@@ -193,7 +194,16 @@ export function ProfileWorkbench({
 
       <section className="log-panel" ref={logPanelRef}>
         {logLines.map((line, index) => (
-          <div key={`${line}-${index}`}>{line}</div>
+          <div key={`${line}-${index}`}>
+            {parseAnsiLogLine(line).map((segment, segmentIndex) => (
+              <span
+                className={logTokenClassName(segment)}
+                key={`${segment.text}-${segmentIndex}`}
+              >
+                {segment.text}
+              </span>
+            ))}
+          </div>
         ))}
       </section>
     </section>
@@ -231,12 +241,15 @@ function formatUptime(
 function formatLogs(logs: string): string[] {
   const lines = logs
     .split(/\r?\n/)
-    .map((line) => stripAnsiCodes(line).trimEnd())
+    .map((line) => line.trimEnd())
     .filter(Boolean)
     .slice(-80);
   return lines.length > 0 ? lines : ["[I] waiting for frpc log output"];
 }
 
-function stripAnsiCodes(input: string): string {
-  return input.replace(/\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
+function logTokenClassName(segment: AnsiLogSegment): string {
+  const classNames = ["log-token"];
+  if (segment.color) classNames.push(`log-token-${segment.color}`);
+  if (segment.bold) classNames.push("log-token-bold");
+  return classNames.join(" ");
 }
