@@ -1,155 +1,87 @@
 # FRP Manager
 
-Languages: [English](#english) | [简体中文](#简体中文)
+Languages: [简体中文](#简体中文) | [English](#english)
 
-## English
+![FRP Manager main window](docs/screenshot.png)
 
-FRP Manager is a desktop client for managing local `frpc` profiles. It is built with Tauri 2, React, TypeScript, and Rust, and focuses on day-to-day profile operation rather than manual TOML editing.
+## 简体中文
 
-### Features
+FRP Manager 是一个用于管理 `frp` 本地客户端 `frpc` 的桌面管理软件。它不是新的内网穿透协议，也不是 `frps` 服务端；它做的是把日常使用 `frpc` 时最繁琐的 profile、proxy、runtime、进程和日志管理收进一个桌面应用里。
 
-- Manage multiple frpc profiles from one desktop app.
-- Create and edit profiles with `serverAddr`, `serverPort`, token auth, and OIDC auth.
-- Add, edit, delete, enable, and disable HTTP, TCP, and UDP proxies.
-- Start, stop, and reload a running profile from the main window.
-- Menu bar / tray controls for quick profile start and stop, proxy toggles, showing the window, and quitting the app.
-- Managed frpc runtime: download the matching frpc package from `fatedier/frp` GitHub Releases instead of bundling a fixed binary.
-- Runtime Settings show installed version, latest version, selected asset, local runtime path, and update status.
-- Colored frpc logs: ANSI color output from frpc is rendered safely in the log panel.
-- Local-first storage. Profiles and runtime metadata are stored in the application data directory.
+如果你已经在用 `frp`，但经常需要手动编辑 TOML、打开终端启动 `frpc`、反复确认某个映射是否在线，FRP Manager 就是为这个场景准备的。
 
-### Runtime Model
+### 解决的痛点
 
-FRP Manager does not ship with a bundled `frpc` binary. On first use, open Runtime Settings and download the runtime for the current platform. The app stores the runtime in its application data directory and records metadata in `runtime/current.json`.
+- 不再每次手动改 `frpc.toml`：Profile 和 Proxy 都可以通过表单创建、编辑和删除。
+- 不再记启动命令：在主窗口或托盘菜单里启动、停止、重载 Profile。
+- 不再靠猜进程状态：界面会显示运行状态、PID、在线映射数量和运行时间。
+- 不再为了开关一个映射改配置重启：Proxy 可以单独启用、停用，运行中的 Profile 会按需 reload。
+- 不再手动下载不同平台的 `frpc`：应用会根据当前系统下载对应的 runtime，并记录本地版本。
+- 不再到处找日志：`frpc` 输出会直接显示在主界面日志面板里，并保留原生颜色。
+- 不再只能盯着主窗口：菜单栏 / 托盘可以快速启动停止 Profile、切换 Proxy、显示窗口或退出应用。
 
-If the runtime file is removed manually, FRP Manager detects it when the main window or Runtime Settings refreshes and marks the runtime as not installed.
+### 主要功能
 
-### Development
+- 多 Profile 管理：适合维护不同 frps 服务端或不同环境的配置。
+- Profile 表单：支持 `serverAddr`、`serverPort`、token auth 和 OIDC auth。
+- Proxy 管理：支持 HTTP、TCP、UDP 映射的新增、编辑、删除、启用和停用。
+- 远端地址预览：列表里展示 HTTP / TCP 等映射的可访问地址。
+- 运行控制：启动、停止、重载当前 Profile，并同步主窗口和托盘菜单状态。
+- Runtime 管理：从 `fatedier/frp` GitHub Releases 下载、安装和升级 `frpc`。
+- 应用更新：从 FRP Manager 的 GitHub Releases 检查并下载新版安装包。
+- 本地日志：Profile 日志和应用更新诊断日志都落盘保存，方便排查问题。
+- 跨平台打包：当前发布流程会构建 macOS、Windows 和 Linux 安装包。
 
-Requirements:
+### 基本使用流程
 
-- Node.js
-- pnpm
-- Rust
-- Tauri platform dependencies for your OS
+1. 安装并启动 FRP Manager。
+2. 打开左下角 Runtime Settings，下载当前系统对应的 `frpc` runtime。
+3. 新建 Profile，填写 `serverAddr`、`serverPort` 和认证方式。
+4. 在 Profile 中添加 HTTP、TCP 或 UDP Proxy。
+5. 点击 Start 启动 Profile，在列表里查看 Proxy 在线状态和日志。
+6. 需要临时开关映射时，可以在主窗口或托盘菜单里切换 Proxy。
 
-Install dependencies:
+### Runtime 管理方式
 
-```bash
-pnpm install
-```
+FRP Manager 不内置固定的 `frpc` 二进制文件。第一次使用时，应用会根据当前系统和 CPU 架构，从 `fatedier/frp` GitHub Releases 下载对应的官方包，并校验官方 sha256 checksum 后安装。
 
-Run in development mode:
+这样做的好处是：
 
-```bash
-pnpm tauri dev
-```
+- macOS、Windows、Linux 可以使用各自平台的 `frpc`。
+- 后续 `frpc` 升级不需要重新发布整个 FRP Manager。
+- 避免把某一个平台的 `frpc` 固定打进所有安装包。
 
-Build a release package:
+如果你手动删除了本地 `frpc` 文件，FRP Manager 会在主窗口或 Runtime Settings 刷新时重新检测，并把 runtime 状态标记为未安装。
 
-```bash
-pnpm tauri build
-```
+### 数据和日志
 
-Frontend-only build:
-
-```bash
-pnpm build
-```
-
-### Tests
-
-Run TypeScript checks:
-
-```bash
-pnpm typecheck
-```
-
-Run Rust tests:
-
-```bash
-cargo test --manifest-path src-tauri/Cargo.toml
-```
-
-Run focused UI/source tests:
-
-```bash
-node test/ansi-log.test.mjs
-node test/port-input.test.mjs
-pnpm test:runtime-management
-pnpm test:proxy-types
-pnpm test:app-name
-```
-
-### GitHub Release Packaging
-
-The repository includes a GitHub Actions release workflow at `.github/workflows/release.yml`.
-
-It can be triggered manually from the Actions tab or by pushing a version tag:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-The workflow first runs TypeScript checks, frontend build, source tests, and Rust tests. It then builds draft release packages for:
-
-- macOS Apple Silicon (`aarch64-apple-darwin`)
-- macOS Intel (`x86_64-apple-darwin`)
-- Windows x64
-- Linux x64 on Ubuntu 22.04
-
-The macOS build keeps the current app icon and uses ad-hoc signing in CI when no Apple signing certificate is configured. For public distribution, add Apple Developer ID signing and notarization secrets later. Linux packaging installs WebKitGTK 4.1 and appindicator development libraries so the Tauri window and tray/menu integration can compile.
-
-Windows packages are unsigned unless a Windows code signing certificate is added to CI. Unsigned installers and newly released binaries can trigger SmartScreen or antivirus warnings because they do not have publisher reputation yet. FRP Manager app updates prefer the MSI asset on Windows, but public distribution should use an OV/EV code signing certificate with timestamped Windows bundle signatures.
-
-Release publishing requires GitHub Actions to write repository contents. In GitHub, check Settings -> Actions -> General -> Workflow permissions and allow read and write permissions. If the repository or organization keeps `GITHUB_TOKEN` restricted, create a fine-grained personal access token with repository Contents read/write access and save it as the `RELEASE_TOKEN` secret.
-
-The app package still does not include `frpc`; users install or update the matching runtime from Runtime Settings after launching FRP Manager.
-
-### Data Storage
-
-On macOS, app data is stored under:
+macOS 默认数据目录：
 
 ```text
 ~/Library/Application Support/com.local.frpmanager
 ```
 
-The app stores:
+Windows 默认数据目录：
+
+```text
+%APPDATA%\com.local.frpmanager
+```
+
+主要文件包括：
 
 - `profiles/<profile-id>/profile.toml`
 - `profiles/<profile-id>/logs/current.log`
 - `runtime/current.json`
-- downloaded frpc runtime files
+- `logs/app.log`
+- 下载并安装后的 `frpc` runtime 文件
 
-### Notes
+### 注意事项
 
-- Runtime downloads use GitHub Releases from `fatedier/frp`; GitHub API rate limits may affect update checks.
-- Some antivirus products classify tunneling or proxy tools such as `frpc.exe` as potentially risky. FRP Manager downloads frpc from `fatedier/frp` Releases and verifies the official sha256 checksum before installing it.
-- Quitting FRP Manager from the tray or Dock shuts down managed frpc processes.
-- Proxy toggles rewrite the local profile TOML and reload the running profile when needed.
-
-## 简体中文
-
-FRP Manager 是一个用于管理本地 `frpc` 的桌面客户端。项目基于 Tauri 2、React、TypeScript 和 Rust 构建，目标是让日常启动、停止、编辑 profile 和 proxy 的操作尽量少依赖手动改 TOML。
-
-### 功能特性
-
-- 在一个桌面应用里管理多个 frpc Profile。
-- 通过表单创建和编辑 Profile，支持 `serverAddr`、`serverPort`、token 认证和 OIDC 认证。
-- 添加、编辑、删除、启用、停用 HTTP、TCP、UDP Proxy。
-- 在主窗口里启动、停止、重载当前 Profile。
-- 菜单栏 / 托盘支持快速启动停止 Profile、切换 Proxy、显示窗口和退出应用。
-- 托管 frpc Runtime：不内置固定的 frpc 二进制文件，而是从 `fatedier/frp` GitHub Releases 下载当前平台对应的包。
-- Runtime 设置界面显示已安装版本、最新版本、当前匹配的资产文件、本地路径和更新状态。
-- 彩色日志显示：frpc 原生 ANSI 彩色输出会在日志面板中安全渲染。
-- 本地优先存储。Profile、日志和 Runtime 元数据都保存在本机应用数据目录。
-
-### Runtime 管理方式
-
-FRP Manager 不会把 `frpc` 固定打进安装包。首次使用时，需要打开 Runtime Settings 下载当前系统对应的 frpc runtime。应用会把 runtime 保存到自己的应用数据目录，并用 `runtime/current.json` 记录版本、平台和路径。
-
-如果你手动删除了本地 frpc 文件，FRP Manager 会在主窗口或 Runtime Settings 刷新时检测到，并把 runtime 状态标记为未安装。
+- FRP Manager 管理的是本机 `frpc`，你仍然需要可用的 `frps` 服务端。
+- Runtime 下载依赖 GitHub Releases，网络环境或 GitHub 限流可能影响检查和下载。
+- 部分杀毒软件会把 `frpc.exe` 这类隧道/代理工具标记为潜在风险；FRP Manager 会从官方 `fatedier/frp` Releases 下载并校验 checksum。
+- Windows 安装包如果没有代码签名证书，可能会触发 SmartScreen 或杀毒软件提醒。
+- 从托盘或 Dock 退出 FRP Manager 时，会退出由应用托管的 `frpc` 进程。
 
 ### 开发
 
@@ -172,86 +104,160 @@ pnpm install
 pnpm tauri dev
 ```
 
-打包发布版本：
-
-```bash
-pnpm tauri build
-```
-
-只构建前端：
+前端构建：
 
 ```bash
 pnpm build
 ```
 
-### 测试
+Tauri 打包：
 
-TypeScript 检查：
+```bash
+pnpm tauri build
+```
+
+常用检查：
 
 ```bash
 pnpm typecheck
-```
-
-Rust 测试：
-
-```bash
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-常用的前端和源码回归测试：
+### 发布打包
 
-```bash
-node test/ansi-log.test.mjs
-node test/port-input.test.mjs
-pnpm test:runtime-management
-pnpm test:proxy-types
-pnpm test:app-name
-```
+仓库包含 GitHub Actions workflow：`.github/workflows/release.yml`。
 
-### GitHub 发布打包
-
-仓库里已经包含 GitHub Actions 发布 workflow：`.github/workflows/release.yml`。
-
-可以在 Actions 页面手动触发，也可以推送版本 tag 触发：
+推送版本 tag 会自动触发 macOS、Windows、Linux 打包：
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-workflow 会先执行 TypeScript 检查、前端构建、源码测试和 Rust 测试，然后生成 draft release 包，覆盖：
+workflow 会先执行 TypeScript 检查、前端构建、源码测试和 Rust 测试，然后生成 Release 资产。应用安装包不包含 `frpc`，用户启动后在 Runtime Settings 中安装或升级 runtime。
 
-- macOS Apple Silicon (`aarch64-apple-darwin`)
-- macOS Intel (`x86_64-apple-darwin`)
-- Windows x64
-- Linux x64，基于 Ubuntu 22.04
+## English
 
-macOS 包会继续使用现在的应用图标；CI 里没有 Apple 证书时会使用 ad-hoc signing。后面如果要正式公开分发，再补 Apple Developer ID 签名和 notarization secrets。Linux 打包会安装 WebKitGTK 4.1 和 appindicator 开发库，保证 Tauri 窗口和托盘/菜单功能可以编译。
+FRP Manager is a desktop manager for the local `frpc` client from `frp`. It does not replace the `frp` protocol and it does not run the `frps` server. Its job is to make day-to-day `frpc` profile, proxy, runtime, process, and log management easier from a desktop UI.
 
-Windows 包在 CI 里没有 Windows 代码签名证书时会是未签名状态。未签名安装器和刚发布的新二进制可能触发 SmartScreen 或杀毒软件提醒，因为还没有发布者信誉。FRP Manager 在 Windows 自更新时会优先下载 MSI 资产；如果要公开稳定分发，应使用 OV/EV 代码签名证书给 Windows 包签名并加时间戳。
+If you already use `frp` but often edit TOML files by hand, run `frpc` commands from a terminal, or check logs to see whether a tunnel is online, FRP Manager is built for that workflow.
 
-发布 Release 需要 GitHub Actions 拥有写入仓库内容的权限。需要在 GitHub 的 Settings -> Actions -> General -> Workflow permissions 里允许 read and write permissions。如果仓库或组织仍然限制 `GITHUB_TOKEN`，可以创建一个 fine-grained personal access token，给当前仓库 Contents read/write 权限，并保存为 `RELEASE_TOKEN` secret。
+### What It Solves
 
-应用安装包仍然不会内置 `frpc`；用户启动 FRP Manager 后，在 Runtime Settings 里下载或升级当前系统对应的 frpc runtime。
+- Manage profiles and proxies with forms instead of hand-editing TOML.
+- Start, stop, and reload profiles without memorizing terminal commands.
+- See runtime state, PID, uptime, active proxy count, and logs in one window.
+- Enable or disable individual proxies and reload the running profile when needed.
+- Download the matching `frpc` runtime for the current platform instead of bundling one fixed binary.
+- Use the tray / menu bar for quick profile and proxy operations.
+- Keep profile logs and app update diagnostics on disk for troubleshooting.
 
-### 数据存储
+### Features
 
-macOS 下应用数据默认位于：
+- Multiple `frpc` profiles.
+- Profile editor with `serverAddr`, `serverPort`, token auth, and OIDC auth.
+- HTTP, TCP, and UDP proxy add/edit/delete/enable/disable workflows.
+- Remote address preview for configured proxies.
+- Start, stop, and reload controls synchronized between the main window and tray menu.
+- Managed `frpc` runtime installation and update from `fatedier/frp` GitHub Releases.
+- FRP Manager app update checks from this project's GitHub Releases.
+- Colored `frpc` log rendering in the main window.
+- Cross-platform release packaging for macOS, Windows, and Linux.
+
+### Basic Flow
+
+1. Install and open FRP Manager.
+2. Open Runtime Settings and install the matching `frpc` runtime.
+3. Create a Profile with server address, server port, and auth settings.
+4. Add HTTP, TCP, or UDP proxies.
+5. Start the Profile and watch proxy status and logs from the main window.
+6. Use the tray / menu bar for quick start, stop, and proxy toggles.
+
+### Runtime Model
+
+FRP Manager does not bundle a fixed `frpc` binary. On first use, it downloads the official platform-specific package from `fatedier/frp` GitHub Releases and verifies the official sha256 checksum before installing it.
+
+This keeps the app package platform-neutral and lets users update `frpc` independently from FRP Manager itself.
+
+### Data And Logs
+
+macOS app data:
 
 ```text
 ~/Library/Application Support/com.local.frpmanager
 ```
 
-主要保存内容包括：
+Windows app data:
+
+```text
+%APPDATA%\com.local.frpmanager
+```
+
+Main files:
 
 - `profiles/<profile-id>/profile.toml`
 - `profiles/<profile-id>/logs/current.log`
 - `runtime/current.json`
-- 下载后的 frpc runtime 文件
+- `logs/app.log`
+- installed `frpc` runtime files
 
-### 说明
+### Notes
 
-- Runtime 下载和更新检查依赖 `fatedier/frp` GitHub Releases，可能会受到 GitHub API 访问限制影响。
-- 部分杀毒软件会把 `frpc.exe` 这类隧道/代理工具归类为潜在风险。FRP Manager 会从 `fatedier/frp` Releases 下载 frpc，并在安装前校验官方 sha256 checksum。
-- 从托盘或 Dock 退出 FRP Manager 时，会退出由应用托管的 frpc 进程。
-- 启用或停用 Proxy 会改写本地 profile TOML；如果对应 Profile 正在运行，会按需 reload。
+- FRP Manager manages local `frpc`; you still need an available `frps` server.
+- Runtime downloads depend on GitHub Releases and may be affected by network conditions or GitHub rate limits.
+- Some antivirus products may flag tunneling tools such as `frpc.exe` as potentially risky. FRP Manager downloads `frpc` from official `fatedier/frp` Releases and verifies checksums before installation.
+- Unsigned Windows packages may trigger SmartScreen or antivirus warnings.
+- Quitting FRP Manager from the tray or Dock stops managed `frpc` processes.
+
+### Development
+
+Requirements:
+
+- Node.js
+- pnpm
+- Rust
+- Tauri platform dependencies for your OS
+
+Install dependencies:
+
+```bash
+pnpm install
+```
+
+Run in development mode:
+
+```bash
+pnpm tauri dev
+```
+
+Build the frontend:
+
+```bash
+pnpm build
+```
+
+Build a Tauri package:
+
+```bash
+pnpm tauri build
+```
+
+Common checks:
+
+```bash
+pnpm typecheck
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+### Release Packaging
+
+The repository includes a GitHub Actions workflow at `.github/workflows/release.yml`.
+
+Push a version tag to build macOS, Windows, and Linux packages:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The workflow runs TypeScript checks, frontend build, source tests, and Rust tests before uploading release assets. The app package does not include `frpc`; users install or update the runtime from Runtime Settings after launching FRP Manager.
