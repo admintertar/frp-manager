@@ -56,6 +56,10 @@ test("log rendering preserves ansi input for the frontend parser", async () => {
   assert.match(workbench, /parseAnsiLogLine/);
   assert.match(workbench, /log-token/);
   assert.doesNotMatch(workbench, /stripAnsiCodes/);
-  assert.match(commands, /Ok\(fs::read_to_string\(log_path\)\?\)/);
-  assert.doesNotMatch(commands, /Ok\(clean_log_output\(&fs::read_to_string\(log_path\)\?\)\)/);
+
+  // The log read path is bounded by size, but the bytes handed to the frontend
+  // must stay raw so the ANSI parser can still colour them.
+  assert.match(commands, /Ok\(log_store::read_tail\(&log_path/);
+  assert.doesNotMatch(commands, /clean_log_output\([^)]*read_tail/);
+  assert.doesNotMatch(commands, /clean_log_output\(&fs::read_to_string\(log_path\)\?\)/);
 });

@@ -42,6 +42,7 @@ export interface ProfileSummary {
   serverAddr: string;
   serverPort: number;
   proxyCount: number;
+  autoStart: boolean;
   runtimeState: RuntimeState;
   runtimePid: number | null;
   runtimeStartedAt: string | null;

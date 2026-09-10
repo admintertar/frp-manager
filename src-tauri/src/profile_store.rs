@@ -44,6 +44,7 @@ impl ProfileStore {
                 server_addr: profile.server_addr,
                 server_port: profile.server_port,
                 proxy_count: profile.proxies.len(),
+                auto_start: profile.meta.auto_start,
                 runtime_state: RuntimeState::Stopped,
                 runtime_pid: None,
                 runtime_started_at: None,
@@ -114,6 +115,7 @@ impl ProfileStore {
             server_addr: profile.server_addr,
             server_port: profile.server_port,
             proxy_count: profile.proxies.len(),
+            auto_start: meta.auto_start,
             runtime_state: RuntimeState::Stopped,
             runtime_pid: None,
             runtime_started_at: None,
@@ -151,6 +153,46 @@ impl ProfileStore {
             &serde_json::to_string_pretty(&meta)
                 .map_err(|err| AppError::Validation(err.to_string()))?,
         )
+    }
+
+    /// Flip the launch-on-startup flag stored alongside the profile TOML.
+    pub fn set_auto_start(&self, id: &str, auto_start: bool) -> AppResult<()> {
+        let meta_path = self.read_meta_with_id_check(id)?;
+        let mut meta = self.load_meta(&meta_path)?;
+        if meta.auto_start == auto_start {
+            return Ok(());
+        }
+        meta.auto_start = auto_start;
+        meta.updated_at = Utc::now();
+        atomic_write(
+            &meta_path,
+            &serde_json::to_string_pretty(&meta)
+                .map_err(|err| AppError::Validation(err.to_string()))?,
+        )
+    }
+
+    /// Ids of every profile flagged to start when the app launches.
+    pub fn auto_start_ids(&self) -> AppResult<Vec<String>> {
+        Ok(self
+            .list()?
+            .into_iter()
+            .filter(|profile| profile.auto_start)
+            .map(|profile| profile.id)
+            .collect())
+    }
+
+    fn read_meta_with_id_check(&self, id: &str) -> AppResult<PathBuf> {
+        validate_profile_id(id)?;
+        let meta_path = self.profile_dir(id).join("meta.json");
+        if !meta_path.exists() {
+            return Err(AppError::ProfileNotFound(id.to_string()));
+        }
+        Ok(meta_path)
+    }
+
+    fn load_meta(&self, meta_path: &Path) -> AppResult<ProfileMeta> {
+        serde_json::from_str(&fs::read_to_string(meta_path)?)
+            .map_err(|err| AppError::Validation(err.to_string()))
     }
 
     pub fn delete(&self, id: &str) -> AppResult<()> {

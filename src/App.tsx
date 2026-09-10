@@ -17,6 +17,7 @@ import {
   listenProfileStateChanged,
   listProfiles,
   readProfileLogs,
+  setProfileAutoStart,
   startProfile,
   stopProfile,
   toggleProxy,
@@ -350,6 +351,16 @@ export default function App() {
     }
   }
 
+  async function handleToggleAutoStart(profileId: string, autoStart: boolean) {
+    try {
+      await setProfileAutoStart(profileId, autoStart);
+      await refreshProfiles(profileId, true);
+      setError(null);
+    } catch (err) {
+      setError(formatInvokeError(err));
+    }
+  }
+
   async function handleStart(profileId: string) {
     setBusyAction(`start:${profileId}`);
     try {
@@ -469,6 +480,9 @@ export default function App() {
         onSelect={handleSelectProfile}
         onEditProfile={(profileId) => void openProfileEditor(profileId)}
         onDeleteProfile={(profileId) => void handleDeleteProfile(profileId)}
+        onToggleAutoStart={(profileId, autoStart) =>
+          void handleToggleAutoStart(profileId, autoStart)
+        }
         onImport={() => {
           setImportError(null);
           setImportOpen(true);

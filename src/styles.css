@@ -229,6 +229,22 @@ button {
   padding: 2px 7px;
 }
 
+.profile-row-auto {
+  background: var(--blue-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--blue);
+  flex: 0 0 auto;
+  padding: 2px 7px;
+}
+
+.profile-context-menu .menu-check {
+  display: inline-block;
+  margin-right: 8px;
+  text-align: center;
+  width: 10px;
+}
+
 .profile-context-menu {
   background: #ffffff;
   border: 1px solid var(--line-strong);

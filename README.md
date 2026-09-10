@@ -25,11 +25,13 @@ FRP Manager 是一个用于管理 `frp` 本地客户端 `frpc` 的桌面管理�
 - 多 Profile 管理：适合维护不同 frps 服务端或不同环境的配置。
 - Profile 表单：支持 `serverAddr`、`serverPort`、token auth 和 OIDC auth。
 - Proxy 管理：支持 HTTP、TCP、UDP 映射的新增、编辑、删除、启用和停用。
+- 代理热重载：开关单个映射时，通过 frpc 的本地管理接口就地重载，其余映射的连接不受影响；重载不生效时才回退为重启。
 - 远端地址预览：列表里展示 HTTP / TCP 等映射的可访问地址。
 - 运行控制：启动、停止、重载当前 Profile，并同步主窗口和托盘菜单状态。
+- 开机自启动：在侧边栏右键菜单里为 Profile 打开 `Start on launch`，应用启动时会自动拉起。
 - Runtime 管理：从 `fatedier/frp` GitHub Releases 下载、安装和升级 `frpc`。
 - 应用更新：从 FRP Manager 的 GitHub Releases 检查并下载新版安装包。
-- 本地日志：Profile 日志和应用更新诊断日志都落盘保存，方便排查问题。
+- 本地日志：Profile 日志按大小自动轮转归档（默认 2 MB 一份、保留 10 份），界面只读取尾部；应用更新诊断日志同样落盘，方便排查问题。
 - 跨平台打包：当前发布流程会构建 macOS、Windows 和 Linux 安装包。
 
 ### 基本使用流程
@@ -78,6 +80,8 @@ Windows 默认数据目录：
 ### 注意事项
 
 - FRP Manager 管理的是本机 `frpc`，你仍然需要可用的 `frps` 服务端。
+- 首次启动某个 Profile 时，应用会在 `profile.toml` 里补上一段 `webServer` 配置：监听 `127.0.0.1` 上 17400–17599 之间一个空闲端口，并写入随机生成的用户名和密码。这段配置只用于代理热重载，不会暴露到公网；如果你手工删掉它，下次启动会重新生成。
+- 日志按大小轮转，归档文件与 `current.log` 放在同一个 `logs/` 目录，按日期命名（如 `2026-09-10.log`），只有最近 10 份会被保留。
 - Runtime 下载依赖 GitHub Releases，网络环境或 GitHub 限流可能影响检查和下载。
 - 部分杀毒软件会把 `frpc.exe` 这类隧道/代理工具标记为潜在风险；FRP Manager 会从官方 `fatedier/frp` Releases 下载并校验 checksum。
 - Windows 安装包如果没有代码签名证书，可能会触发 SmartScreen 或杀毒软件提醒。
@@ -157,11 +161,13 @@ If you already use `frp` but often edit TOML files by hand, run `frpc` commands 
 - Multiple `frpc` profiles.
 - Profile editor with `serverAddr`, `serverPort`, token auth, and OIDC auth.
 - HTTP, TCP, and UDP proxy add/edit/delete/enable/disable workflows.
+- Proxy hot reload: toggling one proxy reloads frpc in place, leaving other proxies connected. A restart is only used when the reload does not take effect.
 - Remote address preview for configured proxies.
 - Start, stop, and reload controls synchronized between the main window and tray menu.
+- Auto start: flag a profile with `Start on launch` from the sidebar context menu and it is started when FRP Manager opens.
 - Managed `frpc` runtime installation and update from `fatedier/frp` GitHub Releases.
 - FRP Manager app update checks from this project's GitHub Releases.
-- Colored `frpc` log rendering in the main window.
+- Colored `frpc` log rendering with automatic size-based rotation (2 MB per file, 10 archives kept); the UI reads only the tail of the log.
 - Cross-platform release packaging for macOS, Windows, and Linux.
 
 ### Basic Flow
@@ -204,6 +210,8 @@ Main files:
 ### Notes
 
 - FRP Manager manages local `frpc`; you still need an available `frps` server.
+- The first time a profile starts, the app adds a `webServer` block to its `profile.toml`: it listens on a free port in 17400-17599 on `127.0.0.1` with randomly generated credentials. This block exists only to serve proxy hot reload and is never exposed beyond the loopback interface. Delete it by hand and it is regenerated on the next start.
+- Logs rotate by size. Archives live next to `current.log` in the same `logs/` directory, named by date (for example `2026-09-10.log`), and only the 10 most recent are kept.
 - Runtime downloads depend on GitHub Releases and may be affected by network conditions or GitHub rate limits.
 - Some antivirus products may flag tunneling tools such as `frpc.exe` as potentially risky. FRP Manager downloads `frpc` from official `fatedier/frp` Releases and verifies checksums before installation.
 - Unsigned Windows packages may trigger SmartScreen or antivirus warnings.

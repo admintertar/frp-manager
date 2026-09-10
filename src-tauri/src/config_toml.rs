@@ -1,5 +1,6 @@
-use toml_edit::{value, DocumentMut, Item, Table};
+use toml_edit::{value, DocumentMut, Item, Table, TableLike};
 
+use crate::admin_api::AdminEndpoint;
 use crate::error::{AppError, AppResult};
 use crate::models::{Profile, ProfileMeta, ProxyConfig, ProxyType};
 
@@ -171,6 +172,12 @@ pub fn set_proxy_enabled(input: &str, proxy_name: &str, enabled: bool) -> AppRes
     }
 }
 
+/// Write the loopback admin settings into a profile TOML.
+///
+/// The block is written as a real `[webServer]` table: a TOML header resets the
+/// current table context, so it stays correct no matter where in the file it
+/// lands. Dotted keys here would be swallowed by a preceding `[[proxies]]`
+/// section instead.
 pub fn ensure_admin_web_server(
     input: &str,
     port: u16,
@@ -180,11 +187,155 @@ pub fn ensure_admin_web_server(
     let mut doc = input
         .parse::<DocumentMut>()
         .map_err(|err| AppError::TomlParse(err.to_string()))?;
-    doc["webServer"]["addr"] = value("127.0.0.1");
-    doc["webServer"]["port"] = value(i64::from(port));
-    doc["webServer"]["user"] = value(user);
-    doc["webServer"]["password"] = value(password);
+
+    if !doc.contains_key("webServer") {
+        doc.insert("webServer", Item::Table(Table::new()));
+    }
+    let table = doc
+        .get_mut("webServer")
+        .and_then(|item| item.as_table_mut())
+        .ok_or_else(|| AppError::Validation("webServer must be a table".into()))?;
+
+    table.insert("addr", value("127.0.0.1"));
+    table.insert("port", value(i64::from(port)));
+    table.insert("user", value(user));
+    table.insert("password", value(password));
+
     Ok(doc.to_string())
+}
+
+/// Port of an existing `webServer` block, if the profile has one.
+pub fn admin_port_from_toml(input: &str) -> AppResult<Option<u16>> {
+    let doc = input
+        .parse::<DocumentMut>()
+        .map_err(|err| AppError::TomlParse(err.to_string()))?;
+    let port = optional_port(&doc, &["webServer", "port"], "webServer.port")?;
+    Ok(port.filter(|port| *port > 0))
+}
+
+/// Connection details for a profile's frpc admin server, if it is configured.
+pub fn admin_endpoint_from_toml(input: &str) -> AppResult<Option<AdminEndpoint>> {
+    let Some(port) = admin_port_from_toml(input)? else {
+        return Ok(None);
+    };
+    let doc = input
+        .parse::<DocumentMut>()
+        .map_err(|err| AppError::TomlParse(err.to_string()))?;
+    let table = optional_table(doc.get("webServer"), "webServer")?;
+
+    Ok(Some(AdminEndpoint {
+        addr: optional_string(table.and_then(|table| table.get("addr")), "webServer.addr")?
+            .unwrap_or_else(|| "127.0.0.1".to_string()),
+        port,
+        user: optional_string(table.and_then(|table| table.get("user")), "webServer.user")?,
+        password: optional_string(
+            table.and_then(|table| table.get("password")),
+            "webServer.password",
+        )?,
+    }))
+}
+
+#[cfg(test)]
+mod admin_web_server_tests {
+    use super::*;
+
+    const WITH_ADMIN: &str = r#"
+serverAddr = "frp.example.com"
+serverPort = 7000
+
+webServer.addr = "127.0.0.1"
+webServer.port = 17401
+webServer.user = "local-admin"
+webServer.password = "s3cret"
+"#;
+
+    #[test]
+    fn reads_the_admin_endpoint_written_by_the_app() {
+        let endpoint = admin_endpoint_from_toml(WITH_ADMIN).unwrap().unwrap();
+
+        assert_eq!(endpoint.addr, "127.0.0.1");
+        assert_eq!(endpoint.port, 17401);
+        assert_eq!(endpoint.user.as_deref(), Some("local-admin"));
+        assert_eq!(endpoint.password.as_deref(), Some("s3cret"));
+    }
+
+    #[test]
+    fn a_profile_without_a_web_server_block_has_no_endpoint() {
+        let raw = "serverAddr = \"frp.example.com\"\nserverPort = 7000\n";
+        assert!(admin_endpoint_from_toml(raw).unwrap().is_none());
+        assert!(admin_port_from_toml(raw).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_zero_port_counts_as_not_configured() {
+        let raw = "serverAddr = \"a\"\nserverPort = 1\nwebServer.port = 0\n";
+        assert!(admin_endpoint_from_toml(raw).unwrap().is_none());
+    }
+
+    #[test]
+    fn missing_credentials_are_allowed() {
+        let raw = "serverAddr = \"a\"\nserverPort = 1\nwebServer.port = 17401\n";
+        let endpoint = admin_endpoint_from_toml(raw).unwrap().unwrap();
+        assert_eq!(endpoint.user, None);
+        assert_eq!(endpoint.password, None);
+    }
+
+    #[test]
+    fn ensure_admin_web_server_is_idempotent_and_preserves_other_keys() {
+        let raw = "serverAddr = \"frp.example.com\"\nserverPort = 7000\n";
+        let once = ensure_admin_web_server(raw, 17402, "u", "p").unwrap();
+        let twice = ensure_admin_web_server(&once, 17402, "u", "p").unwrap();
+
+        assert_eq!(once, twice);
+        assert!(twice.contains("serverAddr = \"frp.example.com\""));
+
+        let endpoint = admin_endpoint_from_toml(&twice).unwrap().unwrap();
+        assert_eq!(endpoint.port, 17402);
+        assert_eq!(endpoint.addr, "127.0.0.1");
+    }
+
+    #[test]
+    fn the_admin_block_tolerates_the_inline_table_form() {
+        let raw = "serverAddr = \"a\"\nserverPort = 1\nwebServer = { addr = \"127.0.0.1\", port = 17403, user = \"u\", password = \"p\" }\n";
+        let endpoint = admin_endpoint_from_toml(raw).unwrap().unwrap();
+
+        assert_eq!(endpoint.port, 17403);
+        assert_eq!(endpoint.user.as_deref(), Some("u"));
+    }
+
+    #[test]
+    fn the_admin_block_reads_back_what_the_app_writes() {
+        let raw = "serverAddr = \"frp.example.com\"\nserverPort = 7000\n";
+        let written = ensure_admin_web_server(raw, 17404, "local-admin", "s3cret").unwrap();
+
+        // Round-tripping matters: the profile is re-parsed on every load.
+        let parsed = parse_profile_toml("demo", "demo", &written).unwrap();
+        assert_eq!(parsed.admin_port, Some(17404));
+
+        let endpoint = admin_endpoint_from_toml(&written).unwrap().unwrap();
+        assert_eq!(endpoint.port, 17404);
+        assert_eq!(endpoint.password.as_deref(), Some("s3cret"));
+        assert!(written.contains("[webServer]"), "expected a real table: {written}");
+    }
+
+    #[test]
+    fn the_admin_block_does_not_get_absorbed_by_a_proxies_section() {
+        let raw = "serverAddr = \"a\"\nserverPort = 1\n\n[[proxies]]\nname = \"web\"\ntype = \"http\"\nlocalPort = 80\n";
+        let written = ensure_admin_web_server(raw, 17405, "u", "p").unwrap();
+
+        let parsed = parse_profile_toml("demo", "demo", &written).unwrap();
+        assert_eq!(parsed.admin_port, Some(17405));
+        assert_eq!(parsed.proxies.len(), 1);
+        assert_eq!(parsed.proxies[0].name, "web");
+        // The proxy must not have gained a stray nested webServer table.
+        assert_eq!(parsed.proxies[0].proxy_type, ProxyType::Http);
+    }
+
+    #[test]
+    fn ensure_admin_web_server_overwrites_a_stale_port() {
+        let updated = ensure_admin_web_server(WITH_ADMIN, 17499, "u", "p").unwrap();
+        assert_eq!(admin_port_from_toml(&updated).unwrap(), Some(17499));
+    }
 }
 
 fn validate_unique_proxy_names(proxies: &[ProxyConfig]) -> AppResult<()> {
@@ -211,7 +362,7 @@ fn optional_port(doc: &DocumentMut, path: &[&str], label: &str) -> AppResult<Opt
     };
 
     for key in &path[1..] {
-        current = match current.as_table() {
+        current = match current.as_table_like() {
             Some(table) => match table.get(key) {
                 Some(item) => item,
                 None => return Ok(None),
@@ -233,10 +384,10 @@ fn optional_port(doc: &DocumentMut, path: &[&str], label: &str) -> AppResult<Opt
         .map_err(|_| AppError::Validation(format!("{label} must be between 0 and 65535")))
 }
 
-fn optional_table<'a>(item: Option<&'a Item>, label: &str) -> AppResult<Option<&'a Table>> {
+fn optional_table<'a>(item: Option<&'a Item>, label: &str) -> AppResult<Option<&'a dyn TableLike>> {
     match item {
         Some(item) => item
-            .as_table()
+            .as_table_like()
             .map(Some)
             .ok_or_else(|| AppError::Validation(format!("{label} must be a table"))),
         None => Ok(None),

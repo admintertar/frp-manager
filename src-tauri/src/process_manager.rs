@@ -1,16 +1,20 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::process::Stdio;
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::fs::OpenOptions;
-use tokio::io::{self, AsyncRead};
+use tokio::io::{self, AsyncRead, AsyncWrite};
 use tokio::process::{Child, Command};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, timeout, Duration, Instant};
 
 use crate::error::{AppError, AppResult};
+use crate::log_store;
 
 #[cfg(target_os = "windows")]
 const WINDOWS_CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -61,6 +65,7 @@ impl ProcessRegistry {
 
         let log_path = current_log_path(working_dir);
         prepare_log_file(&log_path)?;
+        let log_target = Arc::new(LogTarget::new(log_path));
 
         let mut command = Command::new(frpc_path);
         command
@@ -76,11 +81,11 @@ impl ProcessRegistry {
         let stdout_drain = child
             .stdout
             .take()
-            .map(|stdout| spawn_pipe_drain(stdout, log_path.clone()));
+            .map(|stdout| spawn_pipe_drain(stdout, Arc::clone(&log_target)));
         let stderr_drain = child
             .stderr
             .take()
-            .map(|stderr| spawn_pipe_drain(stderr, log_path.clone()));
+            .map(|stderr| spawn_pipe_drain(stderr, Arc::clone(&log_target)));
         let pid = child.id();
 
         match detect_immediate_exit(&mut child).await {
@@ -216,19 +221,136 @@ impl ProcessRegistry {
 }
 
 fn current_log_path(working_dir: &Path) -> PathBuf {
-    working_dir.join("logs").join("current.log")
+    log_store::current_log_path(&working_dir.join("logs"))
 }
 
+/// Start a fresh live log for this run, keeping the previous one as an archive
+/// so a restart does not silently discard history.
 fn prepare_log_file(log_path: &Path) -> std::io::Result<()> {
     if let Some(parent) = log_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
+
+    let has_content = std::fs::metadata(log_path)
+        .map(|metadata| metadata.len() > 0)
+        .unwrap_or(false);
+    if has_content {
+        let _ = log_store::archive_current(log_path, log_store::DEFAULT_KEEP_ARCHIVES);
+    }
+
     std::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
         .open(log_path)?;
     Ok(())
+}
+
+/// Shared destination for a profile's stdout and stderr.
+///
+/// Both pipes append to the same file, so the rotation decision is guarded by a
+/// lock to keep the two drains from archiving the file out from under each other.
+struct LogTarget {
+    path: PathBuf,
+    max_bytes: u64,
+    keep_archives: usize,
+    rotation_lock: Mutex<()>,
+}
+
+impl LogTarget {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            max_bytes: log_store::DEFAULT_MAX_LOG_BYTES,
+            keep_archives: log_store::DEFAULT_KEEP_ARCHIVES,
+            rotation_lock: Mutex::new(()),
+        }
+    }
+}
+
+/// Append-only log writer that rotates itself once it reaches the size cap.
+///
+/// Rotation is checked against a locally tracked size so the common path costs
+/// no extra syscalls; the file is only inspected once a write would cross the
+/// cap.
+struct RotatingLog {
+    target: Arc<LogTarget>,
+    file: tokio::fs::File,
+    written: u64,
+}
+
+impl RotatingLog {
+    async fn open(target: Arc<LogTarget>) -> std::io::Result<Self> {
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&target.path)
+            .await?;
+        let written = file.metadata().await.map(|metadata| metadata.len()).unwrap_or(0);
+        Ok(Self {
+            target,
+            file,
+            written,
+        })
+    }
+
+    fn rotate_if_needed(&mut self, incoming: usize) -> std::io::Result<()> {
+        if self.written + incoming as u64 <= self.target.max_bytes {
+            return Ok(());
+        }
+
+        let Ok(_guard) = self.target.rotation_lock.lock() else {
+            return Ok(());
+        };
+
+        let rotated = log_store::rotate_if_needed(
+            &self.target.path,
+            self.target.max_bytes,
+            self.target.keep_archives,
+        )?;
+        if rotated.is_some() {
+            let reopened = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.target.path)?;
+            self.file = tokio::fs::File::from_std(reopened);
+        }
+
+        // Both pipes share one file, so resync from disk rather than trusting
+        // this writer's own byte count.
+        if let Ok(metadata) = std::fs::metadata(&self.target.path) {
+            self.written = metadata.len();
+        }
+        Ok(())
+    }
+}
+
+impl AsyncWrite for RotatingLog {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let this = self.get_mut();
+        if let Err(err) = this.rotate_if_needed(buf.len()) {
+            return Poll::Ready(Err(err));
+        }
+        match Pin::new(&mut this.file).poll_write(cx, buf) {
+            Poll::Ready(Ok(written)) => {
+                this.written += written as u64;
+                Poll::Ready(Ok(written))
+            }
+            other => other,
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.get_mut().file).poll_flush(cx)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.get_mut().file).poll_shutdown(cx)
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -239,17 +361,12 @@ fn apply_platform_process_options(command: &mut Command) {
 #[cfg(not(target_os = "windows"))]
 fn apply_platform_process_options(_command: &mut Command) {}
 
-fn spawn_pipe_drain<R>(mut reader: R, log_path: PathBuf) -> JoinHandle<()>
+fn spawn_pipe_drain<R>(mut reader: R, target: Arc<LogTarget>) -> JoinHandle<()>
 where
     R: AsyncRead + Unpin + Send + 'static,
 {
     tokio::spawn(async move {
-        match OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_path)
-            .await
-        {
+        match RotatingLog::open(target).await {
             Ok(mut log_file) => {
                 let _ = io::copy(&mut reader, &mut log_file).await;
             }

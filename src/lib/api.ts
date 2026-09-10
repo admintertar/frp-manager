@@ -74,6 +74,13 @@ export function stopProfile(profileId: string): Promise<void> {
   return invokeOrFallback("stop_profile", { profileId });
 }
 
+export function setProfileAutoStart(
+  profileId: string,
+  autoStart: boolean,
+): Promise<void> {
+  return invokeOrFallback("set_profile_auto_start", { profileId, autoStart });
+}
+
 export function toggleProxy(
   profileId: string,
   proxyName: string,

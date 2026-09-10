@@ -10,6 +10,7 @@ interface Props {
   onSelect: (profileId: string) => void;
   onEditProfile: (profileId: string) => void;
   onDeleteProfile: (profileId: string) => void;
+  onToggleAutoStart: (profileId: string, autoStart: boolean) => void;
   onImport: () => void;
   onOpenRuntimeSettings: () => void;
 }
@@ -21,6 +22,7 @@ export function ProfileSidebar({
   onSelect,
   onEditProfile,
   onDeleteProfile,
+  onToggleAutoStart,
   onImport,
   onOpenRuntimeSettings,
 }: Props) {
@@ -80,6 +82,12 @@ export function ProfileSidebar({
     setMenu(null);
   }
 
+  function toggleMenuAutoStart() {
+    if (!menuProfile) return;
+    onToggleAutoStart(menuProfile.id, !menuProfile.autoStart);
+    setMenu(null);
+  }
+
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -116,6 +124,11 @@ export function ProfileSidebar({
               <small className="profile-row-endpoint">
                 {profile.serverAddr}:{profile.serverPort}
               </small>
+              {profile.autoStart ? (
+                <small className="profile-row-auto" title="Starts when FRP Manager opens">
+                  auto
+                </small>
+              ) : null}
               <small className="profile-row-count">
                 {formatProxyCount(profile.proxyCount)}
               </small>
@@ -134,6 +147,17 @@ export function ProfileSidebar({
         >
           <button type="button" role="menuitem" onClick={editMenuProfile}>
             Edit
+          </button>
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={menuProfile.autoStart}
+            onClick={toggleMenuAutoStart}
+          >
+            <span className="menu-check" aria-hidden="true">
+              {menuProfile.autoStart ? "✓" : ""}
+            </span>
+            Start on launch
           </button>
           <button
             type="button"

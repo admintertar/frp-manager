@@ -1,22 +1,38 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use toml_edit::{value, ArrayOfTables, DocumentMut, Item, Table};
 
+use crate::admin_api::AdminEndpoint;
 use crate::app_state::AppState;
-use crate::config_toml::{parse_profile_toml, set_proxy_enabled};
+use crate::config_toml::{
+    admin_endpoint_from_toml, admin_port_from_toml, ensure_admin_web_server, parse_profile_toml,
+    set_proxy_enabled,
+};
 use crate::diagnostics::{append_app_log, read_app_log as read_app_log_file};
 use crate::error::{AppError, AppResult};
 use crate::github_release::{
     download_url, fetch_latest_app_release, select_checksums_asset, select_platform_asset,
     verify_asset_checksum,
 };
+use crate::log_store;
 use crate::models::{Profile, ProfileSummary, ProxyType, RuntimeState};
 use crate::process_manager::{ProcessRegistry, ProfileProcessState};
 use crate::profile_store::ProfileStore;
 use crate::runtime_manager::{current_platform, RuntimeStatus, RuntimeUpdateCheck};
+
+/// Loopback range the app picks per-profile admin ports from.
+const ADMIN_PORT_RANGE_START: u16 = 17400;
+const ADMIN_PORT_RANGE_END: u16 = 17599;
+
+/// How long a proxy toggle is given to show up through the admin API before the
+/// profile is restarted instead.
+const ADMIN_VERIFY_ATTEMPTS: u32 = 5;
+const ADMIN_VERIFY_DELAY: Duration = Duration::from_millis(200);
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -125,7 +141,7 @@ pub async fn update_profile(
         let updated = update_profile_toml(&raw, &input)?;
         store.save_raw_toml(&profile_id, &updated)?;
         store.update_display_name(&profile_id, &profile_name)?;
-        restart_profile_if_running(&state, &profile_id).await
+        apply_config_change(&state, &profile_id).await.map(|_| ())
     }
     .await;
     sync_profile_state(&app).await;
@@ -181,6 +197,7 @@ pub async fn start_profile(
 }
 
 pub async fn start_profile_by_id(state: &AppState, profile_id: &str) -> AppResult<()> {
+    ensure_profile_admin_config(state, profile_id)?;
     let launch = profile_launch_config(state, profile_id)?;
     state
         .registry
@@ -193,6 +210,22 @@ pub async fn start_profile_by_id(state: &AppState, profile_id: &str) -> AppResul
             &launch.working_dir,
         )
         .await
+}
+
+/// Start every profile flagged for launch, returning the ones that failed.
+pub async fn start_auto_start_profiles(state: &AppState) -> Vec<(String, String)> {
+    let ids = match state.profile_store().auto_start_ids() {
+        Ok(ids) => ids,
+        Err(err) => return vec![(String::new(), err.to_string())],
+    };
+
+    let mut failures = Vec::new();
+    for id in ids {
+        if let Err(err) = start_profile_by_id(state, &id).await {
+            failures.push((id, err.to_string()));
+        }
+    }
+    failures
 }
 
 #[tauri::command]
@@ -234,7 +267,20 @@ pub async fn toggle_proxy_by_name(
     let raw = fs::read_to_string(&path)?;
     let updated = set_proxy_enabled(&raw, proxy_name, enabled)?;
     store.save_raw_toml(profile_id, &updated)?;
-    restart_profile_if_running(state, profile_id).await
+    let _ = apply_proxy_toggle(state, profile_id, proxy_name, enabled).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_profile_auto_start(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    profile_id: String,
+    auto_start: bool,
+) -> AppResult<()> {
+    let result = state.profile_store().set_auto_start(&profile_id, auto_start);
+    sync_profile_state(&app).await;
+    result
 }
 
 #[tauri::command]
@@ -250,7 +296,7 @@ pub async fn add_proxy(
         let raw = fs::read_to_string(&path)?;
         let updated = append_proxy_toml(&raw, &input)?;
         store.save_raw_toml(&profile_id, &updated)?;
-        restart_profile_if_running(&state, &profile_id).await
+        apply_config_change(&state, &profile_id).await.map(|_| ())
     }
     .await;
     sync_profile_state(&app).await;
@@ -271,7 +317,7 @@ pub async fn update_proxy(
         let raw = fs::read_to_string(&path)?;
         let updated = update_proxy_toml(&raw, &proxy_name, &input)?;
         store.save_raw_toml(&profile_id, &updated)?;
-        restart_profile_if_running(&state, &profile_id).await
+        apply_config_change(&state, &profile_id).await.map(|_| ())
     }
     .await;
     sync_profile_state(&app).await;
@@ -291,7 +337,7 @@ pub async fn delete_proxy(
         let raw = fs::read_to_string(&path)?;
         let updated = delete_proxy_toml(&raw, &proxy_name)?;
         store.save_raw_toml(&profile_id, &updated)?;
-        restart_profile_if_running(&state, &profile_id).await
+        apply_config_change(&state, &profile_id).await.map(|_| ())
     }
     .await;
     sync_profile_state(&app).await;
@@ -307,7 +353,9 @@ pub async fn read_profile_logs(
     if !log_path.exists() {
         return Ok(String::new());
     }
-    Ok(fs::read_to_string(log_path)?)
+    // Tail-only: the UI polls this every few seconds, so returning the whole
+    // file would let the IPC payload grow without bound.
+    Ok(log_store::read_tail(&log_path, log_store::TAIL_READ_BYTES)?)
 }
 
 #[tauri::command]
@@ -876,6 +924,126 @@ fn set_auth_table(doc: &mut DocumentMut, input: &CreateProfileInput) -> AppResul
     }
 
     Ok(())
+}
+
+/// How a configuration change reached a running frpc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigApply {
+    /// The profile was not running, so only the file on disk changed.
+    NotRunning,
+    /// frpc reloaded in place; other proxies kept their connections.
+    Reloaded,
+    /// Reload was unavailable or did not take effect, so the profile restarted.
+    Restarted,
+}
+
+/// Make sure the profile exposes a loopback admin endpoint before frpc starts.
+///
+/// Without it frpc cannot be asked to reload, and every proxy change would have
+/// to restart the whole tunnel.
+fn ensure_profile_admin_config(state: &AppState, profile_id: &str) -> AppResult<()> {
+    let store = state.profile_store();
+    let raw = fs::read_to_string(store.profile_toml_path(profile_id)?)?;
+    if admin_port_from_toml(&raw)?.is_some() {
+        return Ok(());
+    }
+
+    let port = allocate_admin_port(&store, profile_id)?;
+    let (user, password) = generate_admin_credentials();
+    let updated = ensure_admin_web_server(&raw, port, &user, &password)?;
+    store.save_raw_toml(profile_id, &updated)
+}
+
+/// Pick a loopback admin port that no other profile is already configured to use.
+fn allocate_admin_port(store: &ProfileStore, profile_id: &str) -> AppResult<u16> {
+    let taken = store
+        .list()?
+        .into_iter()
+        .filter(|profile| profile.id != profile_id)
+        .filter_map(|profile| store.load(&profile.id).ok())
+        .filter_map(|profile| profile.admin_port)
+        .collect::<HashSet<u16>>();
+
+    for port in ADMIN_PORT_RANGE_START..=ADMIN_PORT_RANGE_END {
+        if !taken.contains(&port) && portpicker::is_free_tcp(port) {
+            return Ok(port);
+        }
+    }
+
+    portpicker::pick_unused_port()
+        .ok_or_else(|| AppError::Runtime("no free local admin port is available".into()))
+}
+
+/// Fresh random credentials for a profile's loopback admin server.
+fn generate_admin_credentials() -> (String, String) {
+    let unique = uuid::Uuid::new_v4().simple().to_string();
+    (format!("local-{}", &unique[..8]), uuid::Uuid::new_v4().to_string())
+}
+
+fn profile_admin_endpoint(state: &AppState, profile_id: &str) -> AppResult<AdminEndpoint> {
+    let store = state.profile_store();
+    let raw = fs::read_to_string(store.profile_toml_path(profile_id)?)?;
+    admin_endpoint_from_toml(&raw)?.ok_or_else(|| {
+        AppError::Runtime(format!(
+            "profile {profile_id} has no local admin endpoint configured"
+        ))
+    })
+}
+
+async fn profile_is_running(state: &AppState, profile_id: &str) -> AppResult<bool> {
+    let mut registry = state.registry.write().await;
+    Ok(registry.refresh_snapshot(profile_id)?.state == ProfileProcessState::Running)
+}
+
+/// Push a configuration change to a running profile, preferring an in-place
+/// reload and falling back to a restart so the tunnel never keeps stale config.
+async fn apply_config_change(state: &AppState, profile_id: &str) -> AppResult<ConfigApply> {
+    if !profile_is_running(state, profile_id).await? {
+        return Ok(ConfigApply::NotRunning);
+    }
+
+    if let Ok(endpoint) = profile_admin_endpoint(state, profile_id) {
+        if crate::admin_api::reload(&endpoint).await.is_ok() {
+            return Ok(ConfigApply::Reloaded);
+        }
+    }
+
+    restart_profile_if_running(state, profile_id).await?;
+    Ok(ConfigApply::Restarted)
+}
+
+/// Toggle variant of [`apply_config_change`]: reload, then confirm through the
+/// admin API that frpc actually applied the new proxy state.
+async fn apply_proxy_toggle(
+    state: &AppState,
+    profile_id: &str,
+    proxy_name: &str,
+    enabled: bool,
+) -> AppResult<ConfigApply> {
+    if !profile_is_running(state, profile_id).await? {
+        return Ok(ConfigApply::NotRunning);
+    }
+
+    if let Ok(endpoint) = profile_admin_endpoint(state, profile_id) {
+        let reloaded = crate::admin_api::reload(&endpoint).await.is_ok();
+        if reloaded {
+            let applied = crate::admin_api::wait_for_proxy_state(
+                &endpoint,
+                proxy_name,
+                enabled,
+                ADMIN_VERIFY_ATTEMPTS,
+                ADMIN_VERIFY_DELAY,
+            )
+            .await
+            .unwrap_or(false);
+            if applied {
+                return Ok(ConfigApply::Reloaded);
+            }
+        }
+    }
+
+    restart_profile_if_running(state, profile_id).await?;
+    Ok(ConfigApply::Restarted)
 }
 
 async fn restart_profile_if_running(state: &AppState, profile_id: &str) -> AppResult<()> {

@@ -9,6 +9,7 @@ pub struct ProfileSummary {
     pub server_addr: String,
     pub server_port: u16,
     pub proxy_count: usize,
+    pub auto_start: bool,
     pub runtime_state: RuntimeState,
     pub runtime_pid: Option<u32>,
     pub runtime_started_at: Option<DateTime<Utc>>,
