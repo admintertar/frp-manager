@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { Languages, Plus, Settings } from "lucide-react";
 import {
@@ -43,6 +43,7 @@ export function ProfileSidebar({
     x: number;
     y: number;
   } | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const menuProfile = useMemo(
     () => profiles.find((profile) => profile.id === menu?.profileId),
     [menu?.profileId, profiles],
@@ -69,17 +70,36 @@ export function ProfileSidebar({
     };
   }, [menu]);
 
+  // The menu is sized by its labels, so its real size is only known once it is
+  // in the DOM. Clamp it into the viewport here rather than guessing a size at
+  // open time; the layout effect runs before paint, so nothing visibly jumps.
+  useLayoutEffect(() => {
+    const element = menuRef.current;
+    if (!menu || !element) return;
+
+    const margin = 8;
+    const { width, height } = element.getBoundingClientRect();
+    const x = Math.max(
+      margin,
+      Math.min(menu.x, window.innerWidth - width - margin),
+    );
+    const y = Math.max(
+      margin,
+      Math.min(menu.y, window.innerHeight - height - margin),
+    );
+
+    if (x !== menu.x || y !== menu.y) {
+      setMenu({ ...menu, x, y });
+    }
+  }, [menu]);
+
   function openProfileMenu(
     event: MouseEvent<HTMLButtonElement>,
     profile: ProfileSummary,
   ) {
     event.preventDefault();
     onSelect(profile.id);
-    setMenu({
-      profileId: profile.id,
-      x: Math.min(event.clientX, window.innerWidth - 168),
-      y: Math.min(event.clientY, window.innerHeight - 88),
-    });
+    setMenu({ profileId: profile.id, x: event.clientX, y: event.clientY });
   }
 
   function editMenuProfile() {
@@ -168,6 +188,7 @@ export function ProfileSidebar({
       {menu && menuProfile ? (
         <div
           className="profile-context-menu"
+          ref={menuRef}
           role="menu"
           aria-label={t("sidebar.menuLabel", {
             name: menuProfile.displayName,

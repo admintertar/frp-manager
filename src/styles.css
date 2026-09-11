@@ -264,9 +264,13 @@ button {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* Sized by its labels: a fixed width clipped longer copy, and the check mark
+     column left too little room for the label to stay on one line. */
+  max-width: calc(100vw - 16px);
+  min-width: 152px;
   padding: 4px;
   position: fixed;
-  width: 152px;
+  width: max-content;
   z-index: 50;
 }
 
@@ -280,6 +284,8 @@ button {
   min-height: 32px;
   padding: 0 10px;
   text-align: left;
+  /* Menu items are single line by definition; never wrap a label. */
+  white-space: nowrap;
 }
 
 .profile-context-menu button:hover,
