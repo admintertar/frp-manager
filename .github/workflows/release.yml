@@ -127,11 +127,22 @@ jobs:
             exit 0
           fi
 
-          cat > release-notes.md <<'NOTES'
-          FRP Manager desktop release.
+          # Pull the section for this version out of CHANGELOG.md and prepend
+          # the runtime notice that the desktop builds never ship frpc
+          # themselves.
+          SECTION="$(awk '/^## '"${RELEASE_TAG#v}"'/ {flag=1; next} /^## / {flag=0} flag' CHANGELOG.md)"
+          if [[ -z "$SECTION" ]]; then
+            echo "::error::no ${RELEASE_TAG#v} section in CHANGELOG.md"
+            exit 1
+          fi
 
-          Packages are built for macOS, Windows, and Linux. The frpc runtime is not bundled; install or update it from Runtime Settings inside the app.
-          NOTES
+          {
+            echo "$SECTION"
+            echo
+            echo "---"
+            echo
+            echo "Packages are built for macOS, Windows, and Linux. The frpc runtime is not bundled; install or update it from Runtime Settings inside the app."
+          } > release-notes.md
 
           gh release create "$RELEASE_TAG" \
             --draft \
@@ -214,6 +225,28 @@ jobs:
       - name: Install JavaScript dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Read release notes from CHANGELOG
+        id: notes
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF_NAME" == "v__VERSION__" ]]; then
+            VERSION="$(node -p "require('./package.json').version")"
+          fi
+          {
+            awk '/^## '"$VERSION"'/ {flag=1; next} /^## / {flag=0} flag' CHANGELOG.md
+            echo
+            echo "---"
+            echo
+            echo "Packages are built for macOS, Windows, and Linux. The frpc runtime is not bundled; install or update it from Runtime Settings inside the app."
+          } > release-notes.md
+
+          {
+            echo "RELEASE_BODY<<NOTES_EOF"
+            cat release-notes.md
+            echo "NOTES_EOF"
+          } >> "$GITHUB_ENV"
+
       - name: Build and upload release bundle
         uses: tauri-apps/tauri-action@v1
         env:
@@ -223,10 +256,7 @@ jobs:
           args: ${{ matrix.args }}
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}
           releaseName: FRP Manager ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}
-          releaseBody: |
-            FRP Manager desktop release.
-
-            Packages are built for macOS, Windows, and Linux. The frpc runtime is not bundled; install or update it from Runtime Settings inside the app.
+          releaseBody: ${{ env.RELEASE_BODY }}
           releaseDraft: true
           prerelease: false
           includeDebug: false
