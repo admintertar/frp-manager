@@ -247,11 +247,10 @@ button {
   padding: 2px 7px;
 }
 
-.profile-context-menu .menu-check {
-  display: inline-block;
-  margin-right: 8px;
-  text-align: center;
-  width: 10px;
+.profile-context-menu .menu-state {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 12px;
 }
 
 .profile-context-menu {
@@ -275,12 +274,16 @@ button {
 }
 
 .profile-context-menu button {
+  align-items: center;
   background: transparent;
   border: 0;
   border-radius: 6px;
   color: var(--text);
+  column-gap: 16px;
   cursor: pointer;
+  display: flex;
   font: inherit;
+  justify-content: space-between;
   min-height: 32px;
   padding: 0 10px;
   text-align: left;

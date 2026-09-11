@@ -27,6 +27,12 @@ test("the auto start toggle is wired through the sidebar", async () => {
     /onToggleAutoStart\(menuProfile\.id, !menuProfile\.autoStart\)/,
   );
   assert.match(sidebar, /profile-row-auto/);
+  // The row states the setting in words instead of a leading check mark, which
+  // kept the label column flush left and makes the off state explicit.
+  assert.match(sidebar, /className="menu-state"/);
+  assert.match(sidebar, /t\("sidebar\.autoStartOn"\)/);
+  assert.match(sidebar, /t\("sidebar\.autoStartOff"\)/);
+  assert.doesNotMatch(sidebar, /menu-check/);
 
   assert.match(app, /handleToggleAutoStart/);
   assert.match(app, /onToggleAutoStart=\{\(profileId, autoStart\)/);

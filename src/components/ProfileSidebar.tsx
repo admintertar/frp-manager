@@ -206,10 +206,12 @@ export function ProfileSidebar({
             aria-checked={menuProfile.autoStart}
             onClick={toggleMenuAutoStart}
           >
-            <span className="menu-check" aria-hidden="true">
-              {menuProfile.autoStart ? "✓" : ""}
+            <span>{t("sidebar.startOnLaunch")}</span>
+            <span className="menu-state">
+              {menuProfile.autoStart
+                ? t("sidebar.autoStartOn")
+                : t("sidebar.autoStartOff")}
             </span>
-            {t("sidebar.startOnLaunch")}
           </button>
           <button
             type="button"
