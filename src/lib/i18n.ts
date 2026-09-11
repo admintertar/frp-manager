@@ -54,7 +54,7 @@ const en = {
   "workbench.authNotSet": "auth not set",
   "workbench.loadingProfile": "loading profile",
   "workbench.importHint": "Import a frpc profile to begin.",
-  "workbench.detail": "serverAddr: {addr} · serverPort: {port} · {auth}",
+  "workbench.detail": "Server {addr}:{port} · {auth}",
 
   "metrics.status": "Status",
   "metrics.proxies": "Proxies",
@@ -92,6 +92,10 @@ const en = {
   "profileEditor.serverPort": "Server port",
   "profileEditor.authMethod": "Auth method",
   "profileEditor.authToken": "Auth token",
+  "profileEditor.oidcClientId": "OIDC clientID",
+  "profileEditor.oidcClientSecret": "OIDC clientSecret",
+  "profileEditor.oidcAudience": "OIDC audience",
+  "profileEditor.oidcTokenEndpointUrl": "OIDC tokenEndpointURL",
 
   "proxyEditor.editTitle": "Edit Proxy",
   "proxyEditor.addTitle": "Add Proxy",
@@ -186,7 +190,7 @@ const zhCN: Record<MessageKey, string> = {
   "workbench.authNotSet": "未设置认证",
   "workbench.loadingProfile": "正在加载配置",
   "workbench.importHint": "导入一个 frpc 配置开始使用。",
-  "workbench.detail": "serverAddr: {addr} · serverPort: {port} · {auth}",
+  "workbench.detail": "服务端 {addr}:{port} · {auth}",
 
   "metrics.status": "状态",
   "metrics.proxies": "映射",
@@ -224,6 +228,10 @@ const zhCN: Record<MessageKey, string> = {
   "profileEditor.serverPort": "服务端端口",
   "profileEditor.authMethod": "认证方式",
   "profileEditor.authToken": "认证 token",
+  "profileEditor.oidcClientId": "OIDC 客户端 ID",
+  "profileEditor.oidcClientSecret": "OIDC 客户端密钥",
+  "profileEditor.oidcAudience": "OIDC 受众",
+  "profileEditor.oidcTokenEndpointUrl": "OIDC 令牌端点 URL",
 
   "proxyEditor.editTitle": "编辑映射",
   "proxyEditor.addTitle": "添加映射",

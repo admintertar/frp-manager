@@ -239,7 +239,7 @@ export function ProfileEditor({
           ) : (
             <>
               <label>
-                OIDC clientID
+                {t("profileEditor.oidcClientId")}
                 <input
                   value={oidcClientId}
                   disabled={busy}
@@ -248,7 +248,7 @@ export function ProfileEditor({
                 />
               </label>
               <label>
-                OIDC clientSecret
+                {t("profileEditor.oidcClientSecret")}
                 <input
                   type="password"
                   value={oidcClientSecret}
@@ -258,7 +258,7 @@ export function ProfileEditor({
                 />
               </label>
               <label>
-                OIDC audience
+                {t("profileEditor.oidcAudience")}
                 <input
                   value={oidcAudience}
                   disabled={busy}
@@ -267,7 +267,7 @@ export function ProfileEditor({
                 />
               </label>
               <label>
-                OIDC tokenEndpointURL
+                {t("profileEditor.oidcTokenEndpointUrl")}
                 <input
                   value={oidcTokenEndpointUrl}
                   disabled={busy}
