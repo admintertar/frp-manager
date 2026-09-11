@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "../lib/i18n";
 import { sanitizePortInput } from "../lib/portInput";
 import type { CreateProfileInput, Profile, ProfileAuthMethod } from "../types";
 
@@ -21,6 +22,7 @@ export function ProfileEditor({
   onClose,
   onSubmit,
 }: Props) {
+  const t = useTranslation();
   const [profileName, setProfileName] = useState("");
   const [serverAddr, setServerAddr] = useState("");
   const [serverPort, setServerPort] = useState("7000");
@@ -157,13 +159,15 @@ export function ProfileEditor({
         }}
       >
         <h2 id="profile-editor-title">
-          {isEditing ? "Edit frpc Profile" : "New frpc Profile"}
+          {isEditing
+            ? t("profileEditor.editTitle")
+            : t("profileEditor.createTitle")}
         </h2>
         {error ? <div className="error-banner">{error}</div> : null}
 
         <div className="form-grid">
           <label>
-            Profile name
+            {t("profileEditor.profileName")}
             <input
               ref={nameInputRef}
               value={profileName}
@@ -173,7 +177,7 @@ export function ProfileEditor({
             />
           </label>
           <label>
-            Server address
+            {t("profileEditor.serverAddr")}
             <input
               value={serverAddr}
               disabled={busy}
@@ -182,7 +186,7 @@ export function ProfileEditor({
             />
           </label>
           <label>
-            Server port
+            {t("profileEditor.serverPort")}
             <input
               value={serverPort}
               disabled={busy}
@@ -194,11 +198,11 @@ export function ProfileEditor({
             />
           </label>
           <label className="proxy-type-field">
-            <span>Auth method</span>
+            <span>{t("profileEditor.authMethod")}</span>
             <span
               className="proxy-type-options auth-method-options"
               role="group"
-              aria-label="Auth method"
+              aria-label={t("profileEditor.authMethod")}
               style={{
                 gridTemplateColumns: `repeat(${authMethods.length}, minmax(0, 1fr))`,
               }}
@@ -224,7 +228,7 @@ export function ProfileEditor({
 
           {authMethod === "token" ? (
             <label className="full-span">
-              Auth token
+              {t("profileEditor.authToken")}
               <input
                 value={authToken}
                 disabled={busy}
@@ -284,14 +288,20 @@ export function ProfileEditor({
             disabled={busy}
             onClick={onClose}
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="submit"
             className="command-button primary"
             disabled={busy || !canSubmit}
           >
-            {busy ? (isEditing ? "Saving" : "Creating") : isEditing ? "Save" : "Create"}
+            {busy
+              ? isEditing
+                ? t("common.saving")
+                : t("common.creating")
+              : isEditing
+                ? t("common.save")
+                : t("common.create")}
           </button>
         </div>
       </form>

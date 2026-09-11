@@ -1,7 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { DEFAULT_LOCALE } from "./i18n";
+import type { Locale } from "./i18n";
 import type {
   AddProxyInput,
+  AppSettings,
   AppUpdateCheck,
   AppUpdateInstall,
   CreateProfileInput,
@@ -182,6 +185,16 @@ export function openAppUpdateInstaller(): Promise<AppUpdateInstall> {
     assetName: "FRP-Manager_0.0.3_darwin_aarch64.dmg",
     installerPath: "",
   });
+}
+
+export function getSettings(): Promise<AppSettings> {
+  return invokeOrFallback("get_settings", undefined, {
+    locale: DEFAULT_LOCALE,
+  });
+}
+
+export function setAppLocale(locale: Locale): Promise<AppSettings> {
+  return invokeOrFallback("set_locale", { locale }, { locale });
 }
 
 function invokeOrFallback<T>(

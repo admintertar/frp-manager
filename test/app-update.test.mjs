@@ -48,12 +48,13 @@ test("app update prompt is a small modal with update and ignore actions", async 
   assert.match(app, /AppUpdatePrompt/);
   assert.match(app, /APP_UPDATE_IGNORED_VERSION_KEY/);
   assert.match(app, /listenAppUpdateCheckRequested/);
-  assert.match(prompt, /New version available/);
-  assert.match(prompt, /Ignore this version/);
+  // Wording lives in src/lib/i18n.ts, so assert on the keys the prompt uses.
+  assert.match(prompt, /t\("appUpdate\.available"\)/);
+  assert.match(prompt, /t\("appUpdate\.ignoreVersion"\)/);
   assert.match(prompt, /downloadAppUpdate/);
   assert.match(prompt, /openAppUpdateInstaller/);
   assert.match(prompt, /installerPath/);
-  assert.match(prompt, /Open/);
+  assert.match(prompt, /t\("common\.open"\)/);
   assert.doesNotMatch(prompt, /openUrl\(update\.releaseUrl\)/);
   assert.match(tray, /APP_UPDATE_CHECK_REQUESTED_EVENT/);
   assert.match(tray, /app-update-check-requested/);
@@ -134,7 +135,7 @@ test("app update prompt downloads first and opens existing installers manually",
   assert.match(prompt, /await downloadAppUpdate\(\)/);
   assert.match(prompt, /setInstallerPath\(result\.installerPath\)/);
   assert.match(prompt, /await openAppUpdateInstaller\(\)/);
-  assert.match(prompt, /installerPath \? "Open" : "Download"/);
+  assert.match(prompt, /installerPath \? t\("common\.open"\) : t\("common\.download"\)/);
   assert.doesNotMatch(prompt, /onClose\(\);\s*\}\s*catch[\s\S]*downloadAppUpdate/);
 });
 
@@ -172,6 +173,6 @@ test("manual app update checks show feedback when already current", async () => 
     app,
     /if \(!update\.updateAvailable\) \{\s*if \(manual\) \{\s*setAppUpdate\(update\);\s*setAppUpdateOpen\(true\);/s,
   );
-  assert.match(prompt, /FRP Manager is up to date/);
+  assert.match(prompt, /t\("appUpdate\.upToDate"\)/);
   assert.match(prompt, /update\.updateAvailable \?/);
 });

@@ -9,7 +9,7 @@ test("profile workbench distinguishes loading detail from no selection", async (
   );
 
   assert.match(source, /selectedProfile\?: ProfileSummary/);
-  assert.match(source, /Loading profile/);
+  assert.match(source, /t\("empty\.loadingTitle"\)/);
   assert.match(source, /profile-loading-panel/);
   assert.match(source, /profile \?\?/);
 });

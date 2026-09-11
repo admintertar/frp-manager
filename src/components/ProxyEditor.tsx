@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "../lib/i18n";
 import { sanitizePortInput } from "../lib/portInput";
 import { proxyTypeOptions } from "../lib/proxyTypeOptions";
 import type { AddProxyInput, ProxyConfig, ProxyType } from "../types";
@@ -22,6 +23,7 @@ export function ProxyEditor({
   onClose,
   onSubmit,
 }: Props) {
+  const t = useTranslation();
   const [name, setName] = useState("");
   const [proxyType, setProxyType] = useState<ProxyType>("http");
   const [localIp, setLocalIp] = useState("127.0.0.1");
@@ -164,13 +166,13 @@ export function ProxyEditor({
         }}
       >
         <h2 id="proxy-editor-title">
-          {isEditing ? "Edit Proxy" : "Add Proxy"}
+          {isEditing ? t("proxyEditor.editTitle") : t("proxyEditor.addTitle")}
         </h2>
         {error ? <div className="error-banner">{error}</div> : null}
 
         <div className="form-grid">
           <label>
-            Proxy name
+            {t("proxyEditor.proxyName")}
             <input
               ref={nameInputRef}
               value={name}
@@ -180,15 +182,15 @@ export function ProxyEditor({
             />
           </label>
           <label>
-            Mapping address
+            {t("proxyEditor.mappingAddress")}
             <output className="mapping-preview">{mappingAddress}</output>
           </label>
           <label className="proxy-type-field">
-            <span>Type</span>
+            <span>{t("proxyEditor.type")}</span>
             <span
               className="proxy-type-options"
               role="group"
-              aria-label="Proxy type"
+              aria-label={t("proxyEditor.proxyTypeLabel")}
               style={{
                 gridTemplateColumns: `repeat(${typeOptions.length}, minmax(0, 1fr))`,
               }}
@@ -212,7 +214,7 @@ export function ProxyEditor({
             </span>
           </label>
           <label>
-            Local IP
+            {t("proxyEditor.localIp")}
             <input
               value={localIp}
               disabled={busy}
@@ -221,7 +223,7 @@ export function ProxyEditor({
             />
           </label>
           <label>
-            Local port
+            {t("proxyEditor.localPort")}
             <input
               value={localPort}
               disabled={busy}
@@ -235,7 +237,7 @@ export function ProxyEditor({
 
           {needsRemotePort ? (
             <label>
-              Remote port
+              {t("proxyEditor.remotePort")}
               <input
                 value={remotePort}
                 disabled={busy}
@@ -249,7 +251,7 @@ export function ProxyEditor({
           ) : (
             <>
               <label>
-                Subdomain
+                {t("proxyEditor.subdomain")}
                 <input
                   value={subdomain}
                   disabled={busy}
@@ -259,7 +261,7 @@ export function ProxyEditor({
               </label>
               {showCustomDomains ? (
                 <label>
-                  Custom domains
+                  {t("proxyEditor.customDomains")}
                   <input
                     value={customDomains}
                     disabled={busy}
@@ -279,14 +281,20 @@ export function ProxyEditor({
             disabled={busy}
             onClick={onClose}
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="submit"
             className="command-button primary"
             disabled={busy || !canSubmit}
           >
-            {busy ? (isEditing ? "Saving" : "Adding") : isEditing ? "Save" : "Add Proxy"}
+            {busy
+              ? isEditing
+                ? t("common.saving")
+                : t("proxyEditor.adding")
+              : isEditing
+                ? t("common.save")
+                : t("proxyEditor.addAction")}
           </button>
         </div>
       </form>

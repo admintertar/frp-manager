@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Edit3, Play, RefreshCw, RotateCw, Square } from "lucide-react";
 import { parseAnsiLogLine, type AnsiLogSegment } from "../lib/ansiLog";
+import { useTranslation } from "../lib/i18n";
 import type { Profile, ProfileSummary, ProxyConfig, RuntimeState } from "../types";
 import { ProxyTable } from "./ProxyTable";
 
@@ -51,9 +52,12 @@ export function ProfileWorkbench({
   onStop,
   onToggleProxy,
 }: Props) {
+  const t = useTranslation();
   const activeProfile = profile ?? selectedProfile;
   const isProfileLoading = Boolean(selectedProfile && !profile);
-  const authLabel = profile?.authMethod ? `${profile.authMethod} auth` : "auth not set";
+  const authLabel = profile?.authMethod
+    ? t("workbench.authMethod", { method: profile.authMethod })
+    : t("workbench.authNotSet");
   const proxyActiveCount = profile?.proxies.filter((proxy) => proxy.enabled).length ?? 0;
   const actionBlockingControls =
     busyAction !== null &&
@@ -65,7 +69,10 @@ export function ProfileWorkbench({
     );
   const busy = Boolean(actionBlockingControls);
   const logPanelRef = useRef<HTMLElement | null>(null);
-  const logLines = useMemo(() => formatLogs(logs), [logs]);
+  const logLines = useMemo(
+    () => formatLogs(logs, t("log.waiting")),
+    [logs, t],
+  );
 
   useEffect(() => {
     const panel = logPanelRef.current;
@@ -80,10 +87,18 @@ export function ProfileWorkbench({
           <h1>{activeProfile?.displayName ?? "FRP Manager"}</h1>
           <p>
             {profile
-              ? `serverAddr: ${profile.serverAddr} · serverPort: ${profile.serverPort} · ${authLabel}`
+              ? t("workbench.detail", {
+                  addr: profile.serverAddr,
+                  port: profile.serverPort,
+                  auth: authLabel,
+                })
               : selectedProfile
-                ? `serverAddr: ${selectedProfile.serverAddr} · serverPort: ${selectedProfile.serverPort} · loading profile`
-              : "Import a frpc profile to begin."}
+                ? t("workbench.detail", {
+                    addr: selectedProfile.serverAddr,
+                    port: selectedProfile.serverPort,
+                    auth: t("workbench.loadingProfile"),
+                  })
+                : t("workbench.importHint")}
           </p>
         </div>
         <div className="toolbar">
@@ -93,7 +108,8 @@ export function ProfileWorkbench({
               disabled={busy}
               onClick={() => void onStop(activeProfile.id)}
             >
-              <Square size={13} fill="currentColor" strokeWidth={2.2} /> Stop
+              <Square size={13} fill="currentColor" strokeWidth={2.2} />{" "}
+              {t("workbench.stop")}
             </button>
           ) : activeProfile ? (
             <button
@@ -102,11 +118,11 @@ export function ProfileWorkbench({
               title={
                 runtimeInstalled
                   ? undefined
-                  : "Install frpc runtime before starting profiles"
+                  : t("workbench.installRuntimeFirst")
               }
               onClick={() => void onStart(activeProfile.id)}
             >
-              <Play size={16} /> Start
+              <Play size={16} /> {t("workbench.start")}
             </button>
           ) : null}
           {activeProfile ? (
@@ -116,20 +132,20 @@ export function ProfileWorkbench({
                 disabled={busy || runtimeState !== "running" || isProfileLoading}
                 onClick={() => void onReload(activeProfile.id)}
               >
-                <RotateCw size={16} /> Reload
+                <RotateCw size={16} /> {t("workbench.reload")}
               </button>
               <button
                 className="command-button"
                 disabled={busy}
                 onClick={onEdit}
               >
-                <Edit3 size={16} /> Edit
+                <Edit3 size={16} /> {t("common.edit")}
               </button>
             </>
           ) : (
             <button
               className="icon-button"
-              aria-label="Refresh profiles"
+              aria-label={t("workbench.refresh")}
               disabled={busy}
               onClick={() => void onRefresh()}
             >
@@ -143,27 +159,27 @@ export function ProfileWorkbench({
 
       <div className="metrics">
         <div>
-          <span>Status</span>
+          <span>{t("metrics.status")}</span>
           <strong className={`metric-state metric-${runtimeState}`}>
-            {runtimeState}
+            {t(`state.${runtimeState}`)}
           </strong>
         </div>
         <div>
-          <span>Proxies</span>
+          <span>{t("metrics.proxies")}</span>
           <strong>
             {profile
-              ? `${proxyActiveCount} active`
+              ? t("metrics.active", { count: proxyActiveCount })
               : selectedProfile
-                ? `${selectedProfile.proxyCount} configured`
-                : "0 active"}
+                ? t("metrics.configured", { count: selectedProfile.proxyCount })
+                : t("metrics.active", { count: 0 })}
           </strong>
         </div>
         <div>
-          <span>PID</span>
+          <span>{t("metrics.pid")}</span>
           <strong>{runtimePid ?? "-"}</strong>
         </div>
         <div>
-          <span>Uptime</span>
+          <span>{t("metrics.uptime")}</span>
           <strong>{formatUptime(runtimeStartedAt, runtimeState)}</strong>
         </div>
       </div>
@@ -182,13 +198,13 @@ export function ProfileWorkbench({
         />
       ) : selectedProfile ? (
         <section className="empty-panel profile-loading-panel" aria-busy="true">
-          <h2>Loading profile</h2>
-          <p>Preparing {selectedProfile.displayName}.</p>
+          <h2>{t("empty.loadingTitle")}</h2>
+          <p>{t("empty.loadingBody", { name: selectedProfile.displayName })}</p>
         </section>
       ) : (
         <section className="empty-panel">
-          <h2>No Profile selected</h2>
-          <p>Create a profile to start managing frpc.</p>
+          <h2>{t("empty.noProfileTitle")}</h2>
+          <p>{t("empty.noProfileBody")}</p>
         </section>
       )}
 
@@ -238,13 +254,13 @@ function formatUptime(
     .join(":");
 }
 
-function formatLogs(logs: string): string[] {
+function formatLogs(logs: string, placeholder: string): string[] {
   const lines = logs
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
     .filter(Boolean)
     .slice(-80);
-  return lines.length > 0 ? lines : ["[I] waiting for frpc log output"];
+  return lines.length > 0 ? lines : [placeholder];
 }
 
 function logTokenClassName(segment: AnsiLogSegment): string {

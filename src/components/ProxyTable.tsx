@@ -1,4 +1,5 @@
 import { Pencil, Plus, Trash2 } from "lucide-react";
+import { useTranslation } from "../lib/i18n";
 import { formatRemoteAddress } from "../lib/remoteDisplay";
 import type { ProxyConfig } from "../types";
 
@@ -21,23 +22,24 @@ export function ProxyTable({
   onDelete,
   onToggle,
 }: Props) {
+  const t = useTranslation();
   const isProxyBusy = busyProxyName !== null && busyProxyName !== undefined;
 
   return (
     <section className="table-panel">
       <div className="panel-header">
-        <strong>Proxies</strong>
+        <strong>{t("table.title")}</strong>
         <button className="command-button compact" onClick={onAdd}>
-          <Plus size={15} /> Add Proxy
+          <Plus size={15} /> {t("table.addProxy")}
         </button>
       </div>
       <div className="proxy-table-header">
-        <span>Name</span>
-        <span>Type</span>
-        <span>Local</span>
-        <span>Remote</span>
-        <span>Status</span>
-        <span>Actions</span>
+        <span>{t("table.columnName")}</span>
+        <span>{t("table.columnType")}</span>
+        <span>{t("table.columnLocal")}</span>
+        <span>{t("table.columnRemote")}</span>
+        <span>{t("table.columnStatus")}</span>
+        <span>{t("table.columnActions")}</span>
       </div>
       {proxies.map((proxy) => (
         <div className="proxy-table-row" key={proxy.name}>
@@ -50,20 +52,20 @@ export function ProxyTable({
               type="checkbox"
               checked={proxy.enabled}
               disabled={isProxyBusy}
-              aria-label={`Enable ${proxy.name}`}
+              aria-label={t("table.enable", { name: proxy.name })}
               onChange={(event) =>
                 void onToggle(proxy.name, event.target.checked)
               }
             />
             <span className={proxy.enabled ? "proxy-online" : "proxy-offline"}>
-              {proxy.enabled ? "online" : "off"}
+              {proxy.enabled ? t("table.online") : t("table.off")}
             </span>
           </label>
           <div className="proxy-row-actions">
             <button
               className="icon-button table-icon-button"
               type="button"
-              aria-label={`Edit ${proxy.name}`}
+              aria-label={t("table.editProxy", { name: proxy.name })}
               disabled={isProxyBusy}
               onClick={() => onEdit(proxy)}
             >
@@ -72,7 +74,7 @@ export function ProxyTable({
             <button
               className="icon-button table-icon-button danger-icon"
               type="button"
-              aria-label={`Delete ${proxy.name}`}
+              aria-label={t("table.deleteProxy", { name: proxy.name })}
               disabled={isProxyBusy}
               onClick={() => void onDelete(proxy.name)}
             >
@@ -82,7 +84,7 @@ export function ProxyTable({
         </div>
       ))}
       {proxies.length === 0 ? (
-        <div className="proxy-table-empty">This Profile has no proxies.</div>
+        <div className="proxy-table-empty">{t("table.empty")}</div>
       ) : null}
     </section>
   );

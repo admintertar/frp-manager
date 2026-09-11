@@ -46,7 +46,7 @@ test("profile editor uses the same custom control for auth method", async () => 
   );
 
   assert.doesNotMatch(source, /<select[\s>]/);
-  assert.match(source, /aria-label="Auth method"/);
+  assert.match(source, /aria-label=\{t\("profileEditor\.authMethod"\)\}/);
   assert.match(source, /auth-method-options/);
   assert.match(source, /proxy-type-option selected/);
 });

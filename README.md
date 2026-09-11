@@ -29,6 +29,7 @@ FRP Manager 是一个用于管理 `frp` 本地客户端 `frpc` 的桌面管理�
 - 远端地址预览：列表里展示 HTTP / TCP 等映射的可访问地址。
 - 运行控制：启动、停止、重载当前 Profile，并同步主窗口和托盘菜单状态。
 - 开机自启动：在侧边栏右键菜单里为 Profile 打开 `Start on launch`，应用启动时会自动拉起。
+- 界面多语言：支持简体中文和英文，点侧边栏左上角的语言按钮切换，选择会记住；托盘菜单跟随同一语言。
 - Runtime 管理：从 `fatedier/frp` GitHub Releases 下载、安装和升级 `frpc`。
 - 应用更新：从 FRP Manager 的 GitHub Releases 检查并下载新版安装包。
 - 本地日志：Profile 日志按大小自动轮转归档（默认 2 MB 一份、保留 10 份），界面只读取尾部；应用更新诊断日志同样落盘，方便排查问题。
@@ -82,6 +83,7 @@ Windows 默认数据目录：
 - FRP Manager 管理的是本机 `frpc`，你仍然需要可用的 `frps` 服务端。
 - 首次启动某个 Profile 时，应用会在 `profile.toml` 里补上一段 `webServer` 配置：监听 `127.0.0.1` 上 17400–17599 之间一个空闲端口，并写入随机生成的用户名和密码。这段配置只用于代理热重载，不会暴露到公网；如果你手工删掉它，下次启动会重新生成。
 - 日志按大小轮转，归档文件与 `current.log` 放在同一个 `logs/` 目录，按日期命名（如 `2026-09-10.log`），只有最近 10 份会被保留。
+- 语言选择保存在应用数据目录的 `settings.json` 里，而不是浏览器存储 —— 托盘菜单在界面加载前就要用到它。
 - Runtime 下载依赖 GitHub Releases，网络环境或 GitHub 限流可能影响检查和下载。
 - 部分杀毒软件会把 `frpc.exe` 这类隧道/代理工具标记为潜在风险；FRP Manager 会从官方 `fatedier/frp` Releases 下载并校验 checksum。
 - Windows 安装包如果没有代码签名证书，可能会触发 SmartScreen 或杀毒软件提醒。
@@ -165,6 +167,7 @@ If you already use `frp` but often edit TOML files by hand, run `frpc` commands 
 - Remote address preview for configured proxies.
 - Start, stop, and reload controls synchronized between the main window and tray menu.
 - Auto start: flag a profile with `Start on launch` from the sidebar context menu and it is started when FRP Manager opens.
+- Localized UI: Simplified Chinese and English, switched from the language button in the sidebar header. The choice is remembered and the tray menu follows it.
 - Managed `frpc` runtime installation and update from `fatedier/frp` GitHub Releases.
 - FRP Manager app update checks from this project's GitHub Releases.
 - Colored `frpc` log rendering with automatic size-based rotation (2 MB per file, 10 archives kept); the UI reads only the tail of the log.
@@ -212,6 +215,7 @@ Main files:
 - FRP Manager manages local `frpc`; you still need an available `frps` server.
 - The first time a profile starts, the app adds a `webServer` block to its `profile.toml`: it listens on a free port in 17400-17599 on `127.0.0.1` with randomly generated credentials. This block exists only to serve proxy hot reload and is never exposed beyond the loopback interface. Delete it by hand and it is regenerated on the next start.
 - Logs rotate by size. Archives live next to `current.log` in the same `logs/` directory, named by date (for example `2026-09-10.log`), and only the 10 most recent are kept.
+- The language choice is stored in `settings.json` in the app data directory rather than browser storage, because the tray menu is built before the webview loads.
 - Runtime downloads depend on GitHub Releases and may be affected by network conditions or GitHub rate limits.
 - Some antivirus products may flag tunneling tools such as `frpc.exe` as potentially risky. FRP Manager downloads `frpc` from official `fatedier/frp` Releases and verifies checksums before installation.
 - Unsigned Windows packages may trigger SmartScreen or antivirus warnings.

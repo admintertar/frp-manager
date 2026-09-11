@@ -13,10 +13,12 @@ import {
   deleteProxy,
   getProfile,
   getRuntimeStatus,
+  getSettings,
   listenAppUpdateCheckRequested,
   listenProfileStateChanged,
   listProfiles,
   readProfileLogs,
+  setAppLocale,
   setProfileAutoStart,
   startProfile,
   stopProfile,
@@ -24,6 +26,8 @@ import {
   updateProfile,
   updateProxy,
 } from "./lib/api";
+import { resolveLocale, setLocale, useLocale, useTranslation } from "./lib/i18n";
+import type { Locale } from "./lib/i18n";
 import type {
   AddProxyInput,
   AppUpdateCheck,
@@ -41,6 +45,8 @@ import "./styles.css";
 const APP_UPDATE_IGNORED_VERSION_KEY = "frp-manager.ignored-app-update-version";
 
 export default function App() {
+  const t = useTranslation();
+  const locale = useLocale();
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
   const [profileDetail, setProfileDetail] = useState<Profile | undefined>();
   const [selectedId, setSelectedId] = useState<string | undefined>();
@@ -63,6 +69,7 @@ export default function App() {
   const [busyProxyName, setBusyProxyName] = useState<string | null>(null);
   const selectedIdRef = useRef<string | undefined>(undefined);
   const pendingSelectionRef = useRef<string | undefined>(undefined);
+  const settingsLoadedRef = useRef(false);
 
   const selected = useMemo(
     () => profiles.find((profile) => profile.id === selectedId) ?? profiles[0],
@@ -168,6 +175,35 @@ export default function App() {
     void refreshRuntimeInfo();
     void checkForAppUpdate(false);
   }, []);
+
+  // Adopt the stored language once, before anything is written back.
+  useEffect(() => {
+    let disposed = false;
+    void (async () => {
+      try {
+        const settings = await getSettings();
+        if (disposed) return;
+        settingsLoadedRef.current = true;
+        setLocale(resolveLocale(settings.locale));
+      } catch {
+        settingsLoadedRef.current = true;
+      }
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
+  // Keep the backend in sync so the tray menu follows the UI. Guarded by the
+  // load above, otherwise the initial default would overwrite a stored choice.
+  useEffect(() => {
+    if (!settingsLoadedRef.current) return;
+    void setAppLocale(locale).catch(() => undefined);
+  }, [locale]);
+
+  function handleChangeLocale(next: Locale) {
+    setLocale(next);
+  }
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -425,7 +461,9 @@ export default function App() {
   }
 
   async function handleDeleteProxy(profileId: string, proxyName: string) {
-    const confirmed = window.confirm(`Delete proxy "${proxyName}"?`);
+    const confirmed = window.confirm(
+      t("confirm.deleteProxy", { name: proxyName }),
+    );
     if (!confirmed) return;
     setBusyProxyName(proxyName);
     try {
@@ -443,7 +481,9 @@ export default function App() {
   async function handleDeleteProfile(profileId: string) {
     const profile = profiles.find((profile) => profile.id === profileId);
     const confirmed = window.confirm(
-      `Delete profile "${profile?.displayName ?? profileId}"?`,
+      t("confirm.deleteProfile", {
+        name: profile?.displayName ?? profileId,
+      }),
     );
     if (!confirmed) return;
 
@@ -483,6 +523,7 @@ export default function App() {
         onToggleAutoStart={(profileId, autoStart) =>
           void handleToggleAutoStart(profileId, autoStart)
         }
+        onChangeLocale={handleChangeLocale}
         onImport={() => {
           setImportError(null);
           setImportOpen(true);

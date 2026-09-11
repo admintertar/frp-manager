@@ -10,6 +10,7 @@ pub mod models;
 pub mod process_manager;
 pub mod profile_store;
 pub mod runtime_manager;
+pub mod settings;
 pub mod tray;
 
 use app_state::AppState;
@@ -86,7 +87,9 @@ pub fn run() {
             commands::install_runtime,
             commands::check_app_update,
             commands::download_app_update,
-            commands::open_app_update_installer
+            commands::open_app_update_installer,
+            commands::get_settings,
+            commands::set_locale
         ])
         .build(tauri::generate_context!())
         .expect("error while running FRP Manager");

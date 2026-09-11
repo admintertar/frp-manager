@@ -28,13 +28,13 @@ test("profile toolbar renders start and stop from runtime state only", async () 
   assert.match(app, /current === `start:\$\{id\}` && runtimeState === "running"/);
   assert.match(
     workbench,
-    /className="command-button danger"[\s\S]*disabled=\{busy\}[\s\S]*onClick=\{\(\) => void onStop\(activeProfile\.id\)\}[\s\S]*Stop/,
+    /className="command-button danger"[\s\S]*disabled=\{busy\}[\s\S]*onClick=\{\(\) => void onStop\(activeProfile\.id\)\}[\s\S]*t\("workbench\.stop"\)/,
   );
   assert.match(
     workbench,
-    /className="command-button primary"[\s\S]*disabled=\{busy \|\| !runtimeInstalled\}[\s\S]*onClick=\{\(\) => void onStart\(activeProfile\.id\)\}[\s\S]*Start/,
+    /className="command-button primary"[\s\S]*disabled=\{busy \|\| !runtimeInstalled\}[\s\S]*onClick=\{\(\) => void onStart\(activeProfile\.id\)\}[\s\S]*t\("workbench\.start"\)/,
   );
-  assert.match(workbench, /<RotateCw size=\{16\} \/> Reload/);
+  assert.match(workbench, /<RotateCw size=\{16\} \/> \{t\("workbench\.reload"\)\}/);
   assert.doesNotMatch(workbench, /isStartActionComplete/);
   assert.doesNotMatch(workbench, /isStopActionComplete/);
   assert.doesNotMatch(workbench, /effectiveBusyAction/);

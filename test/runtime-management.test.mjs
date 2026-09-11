@@ -24,9 +24,9 @@ test("runtime settings exposes install and update management states", async () =
   );
 
   assert.match(settings, /installRuntime/);
-  assert.match(settings, /not installed/);
+  assert.match(settings, /t\("runtimeSettings\.notInstalled/);
   assert.match(settings, /Download/);
-  assert.match(settings, /Open Folder/);
+  assert.match(settings, /t\("runtimeSettings\.openFolder"\)/);
   assert.match(app, /getRuntimeStatus/);
   assert.match(workbench, /runtimeInstalled/);
 });
@@ -106,7 +106,7 @@ test("runtime settings close action uses an icon", async () => {
     "utf8",
   );
 
-  assert.match(settings, /<X size=\{16\} \/>[\s\S]*Close/);
+  assert.match(settings, /<X size=\{16\} \/>[\s\S]*t\("common\.close"\)/);
 });
 
 test("frpc is not bundled as a Tauri sidecar", async () => {

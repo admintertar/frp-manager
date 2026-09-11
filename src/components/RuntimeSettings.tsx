@@ -9,6 +9,7 @@ import {
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState } from "react";
 import { checkRuntimeUpdate, getRuntimeStatus, installRuntime } from "../lib/api";
+import { useTranslation } from "../lib/i18n";
 import type { RuntimeStatus, RuntimeUpdateCheck } from "../types";
 
 interface Props {
@@ -24,6 +25,7 @@ export function RuntimeSettings({
   onClose,
   onStatusChange,
 }: Props) {
+  const t = useTranslation();
   const [result, setResult] = useState<RuntimeUpdateCheck | null>(null);
   const [localStatus, setLocalStatus] = useState<RuntimeStatus>(status);
   const [error, setError] = useState<string | null>(null);
@@ -144,11 +146,11 @@ export function RuntimeSettings({
     ? error
     : result
       ? result.updateAvailable
-        ? "Update available"
-        : "Runtime is current"
+        ? t("runtimeSettings.updateAvailable")
+        : t("runtimeSettings.upToDate")
       : installed
-        ? "Runtime installed"
-        : "frpc runtime not installed";
+        ? t("runtimeSettings.installed")
+        : t("runtimeSettings.notInstalled");
   const statusClass = error
     ? "runtime-status runtime-status-error"
     : !installed
@@ -156,7 +158,7 @@ export function RuntimeSettings({
       : result?.updateAvailable
         ? "runtime-status runtime-status-update"
         : "runtime-status";
-  const actionLabel = installed ? "Update" : "Download";
+  const actionLabel = installed ? t("common.update") : t("common.download");
 
   return (
     <div className="modal-backdrop">
@@ -168,14 +170,14 @@ export function RuntimeSettings({
       >
         <header className="modal-title-row">
           <div>
-            <h2 id="runtime-settings-title">frpc Runtime</h2>
+            <h2 id="runtime-settings-title">{t("runtimeSettings.title")}</h2>
             <p className="muted">fatedier/frp GitHub Releases</p>
           </div>
           <button
             ref={closeButtonRef}
             type="button"
             className="icon-button"
-            aria-label="Close runtime settings"
+            aria-label={t("runtimeSettings.close")}
             onClick={onClose}
           >
             <X size={18} />
@@ -193,29 +195,29 @@ export function RuntimeSettings({
 
         <div className="runtime-result-grid">
           <div>
-            <span>Current</span>
+            <span>{t("runtimeSettings.fieldCurrent")}</span>
             <strong>
               {result?.currentVersion ??
                 localStatus.currentVersion ??
-                "not installed"}
+                t("runtimeSettings.notInstalledShort")}
             </strong>
           </div>
           <div>
-            <span>Latest</span>
+            <span>{t("runtimeSettings.fieldLatest")}</span>
             <strong>{result?.latestVersion ?? "-"}</strong>
           </div>
           <div>
-            <span>Platform</span>
+            <span>{t("runtimeSettings.fieldPlatform")}</span>
             <strong>
               {localStatus.platform.os} {localStatus.platform.arch}
             </strong>
           </div>
           <div className="runtime-asset">
-            <span>Asset</span>
+            <span>{t("runtimeSettings.fieldAsset")}</span>
             <strong>{result?.assetName ?? "-"}</strong>
           </div>
           <div className="runtime-asset">
-            <span>Path</span>
+            <span>{t("runtimeSettings.fieldPath")}</span>
             <strong>{localStatus.runtimePath ?? "-"}</strong>
           </div>
         </div>
@@ -223,7 +225,7 @@ export function RuntimeSettings({
         <div className="modal-actions">
           <button type="button" className="command-button" onClick={onClose}>
             <X size={16} />
-            Close
+            {t("common.close")}
           </button>
           <button
             type="button"
@@ -232,7 +234,7 @@ export function RuntimeSettings({
             onClick={() => void openFolder()}
           >
             <FolderOpen size={16} />
-            Open Folder
+            {t("runtimeSettings.openFolder")}
           </button>
           <button
             type="button"
@@ -241,7 +243,9 @@ export function RuntimeSettings({
             onClick={() => void check()}
           >
             <RefreshCw size={16} />
-            {busy === "check" ? "Checking" : "Check Updates"}
+            {busy === "check"
+              ? t("common.checking")
+              : t("runtimeSettings.checkUpdates")}
           </button>
           <button
             type="button"
@@ -250,7 +254,7 @@ export function RuntimeSettings({
             onClick={() => void install()}
           >
             <Download size={16} />
-            {busy === "install" ? "Downloading" : actionLabel}
+            {busy === "install" ? t("common.downloading") : actionLabel}
           </button>
         </div>
       </section>

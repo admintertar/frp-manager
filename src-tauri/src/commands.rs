@@ -24,6 +24,7 @@ use crate::models::{Profile, ProfileSummary, ProxyType, RuntimeState};
 use crate::process_manager::{ProcessRegistry, ProfileProcessState};
 use crate::profile_store::ProfileStore;
 use crate::runtime_manager::{current_platform, RuntimeStatus, RuntimeUpdateCheck};
+use crate::settings::{Locale, Settings};
 
 /// Loopback range the app picks per-profile admin ports from.
 const ADMIN_PORT_RANGE_START: u16 = 17400;
@@ -536,6 +537,29 @@ pub async fn open_app_update_installer(app: AppHandle) -> AppResult<AppUpdateIns
         Err(err) => log_app_update_event(&app, &format!("open installer failed error={err}")),
     }
     result
+}
+
+#[tauri::command]
+pub async fn get_settings(state: State<'_, AppState>) -> AppResult<Settings> {
+    Ok(state.settings())
+}
+
+/// Persist the UI language and rebuild the tray menu so it matches.
+#[tauri::command]
+pub async fn set_locale(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    locale: Locale,
+) -> AppResult<Settings> {
+    let settings = Settings { locale };
+    crate::settings::save(&state.data_dir, &settings)?;
+    state.set_locale(locale);
+    if let Err(err) = crate::tray::refresh_menu(&app).await {
+        return Err(AppError::Runtime(format!(
+            "failed to rebuild the tray menu: {err}"
+        )));
+    }
+    Ok(settings)
 }
 
 async fn latest_app_update_check(app: &AppHandle) -> AppResult<AppUpdateCheck> {

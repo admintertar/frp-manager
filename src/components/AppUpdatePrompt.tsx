@@ -1,6 +1,7 @@
 import { Download, ExternalLink, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { downloadAppUpdate, openAppUpdateInstaller } from "../lib/api";
+import { useTranslation } from "../lib/i18n";
 import type { AppUpdateCheck } from "../types";
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function AppUpdatePrompt({ update, open, onClose, onIgnore }: Props) {
+  const t = useTranslation();
   const [busy, setBusy] = useState<"download" | "open" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [installerPath, setInstallerPath] = useState<string | null>(null);
@@ -27,13 +29,14 @@ export function AppUpdatePrompt({ update, open, onClose, onIgnore }: Props) {
 
   if (!open || !update) return null;
   const title = update.updateAvailable
-    ? "New version available"
-    : "FRP Manager is up to date";
+    ? t("appUpdate.available")
+    : t("appUpdate.upToDate");
   const latestLabel = update.updateAvailable
     ? `FRP Manager ${update.latestVersion}`
-    : "No newer release was found";
-  const idlePrimaryLabel = installerPath ? "Open" : "Download";
-  const primaryLabel = busy === "download" ? "Downloading..." : idlePrimaryLabel;
+    : t("appUpdate.noNewer");
+  const idlePrimaryLabel = installerPath ? t("common.open") : t("common.download");
+  const primaryLabel =
+    busy === "download" ? t("common.downloadingEllipsis") : idlePrimaryLabel;
 
   async function handlePrimaryAction() {
     if (!update) return;
@@ -70,7 +73,7 @@ export function AppUpdatePrompt({ update, open, onClose, onIgnore }: Props) {
           <button
             type="button"
             className="icon-button"
-            aria-label="Close update prompt"
+            aria-label={t("appUpdate.close")}
             onClick={onClose}
           >
             <X size={18} />
@@ -78,8 +81,8 @@ export function AppUpdatePrompt({ update, open, onClose, onIgnore }: Props) {
         </header>
 
         <div className="app-update-copy">
-          <span>Current {update.currentVersion}</span>
-          <strong>Latest {update.latestVersion}</strong>
+          <span>{t("appUpdate.current", { version: update.currentVersion })}</span>
+          <strong>{t("appUpdate.latest", { version: update.latestVersion })}</strong>
         </div>
         {error ? <div className="error-banner">{error}</div> : null}
 
@@ -94,7 +97,7 @@ export function AppUpdatePrompt({ update, open, onClose, onIgnore }: Props) {
             onClick={onClose}
             disabled={busy !== null}
           >
-            {update.updateAvailable ? "Later" : "Close"}
+            {update.updateAvailable ? t("common.later") : t("common.close")}
           </button>
           {update.updateAvailable ? (
             <>
@@ -104,7 +107,7 @@ export function AppUpdatePrompt({ update, open, onClose, onIgnore }: Props) {
                 onClick={() => onIgnore(update.latestVersion)}
                 disabled={busy !== null}
               >
-                Ignore this version
+                {t("appUpdate.ignoreVersion")}
               </button>
               <button
                 type="button"

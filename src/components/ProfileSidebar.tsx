@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
-import { Plus, Settings } from "lucide-react";
+import { Languages, Plus, Settings } from "lucide-react";
+import {
+  localeLabel,
+  otherLocale,
+  useLocale,
+  useTranslation,
+} from "../lib/i18n";
+import type { Locale } from "../lib/i18n";
 import type { ProfileSummary } from "../types";
 
 interface Props {
@@ -11,6 +18,7 @@ interface Props {
   onEditProfile: (profileId: string) => void;
   onDeleteProfile: (profileId: string) => void;
   onToggleAutoStart: (profileId: string, autoStart: boolean) => void;
+  onChangeLocale: (locale: Locale) => void;
   onImport: () => void;
   onOpenRuntimeSettings: () => void;
 }
@@ -23,9 +31,13 @@ export function ProfileSidebar({
   onEditProfile,
   onDeleteProfile,
   onToggleAutoStart,
+  onChangeLocale,
   onImport,
   onOpenRuntimeSettings,
 }: Props) {
+  const t = useTranslation();
+  const locale = useLocale();
+  const nextLocale = otherLocale(locale);
   const [menu, setMenu] = useState<{
     profileId: string;
     x: number;
@@ -92,16 +104,28 @@ export function ProfileSidebar({
     <aside className="sidebar">
       <div className="sidebar-header">
         <div>
-          <strong>Profiles</strong>
-          <span>{profiles.length} configured</span>
+          <strong>{t("sidebar.title")}</strong>
+          <span>{t("sidebar.configured", { count: profiles.length })}</span>
         </div>
-        <button
-          className="icon-button"
-          aria-label="Add profile"
-          onClick={onImport}
-        >
-          <Plus size={18} />
-        </button>
+        <span className="sidebar-header-actions">
+          <button
+            className="icon-button"
+            aria-label={t("sidebar.switchLanguage", {
+              language: localeLabel(nextLocale),
+            })}
+            title={localeLabel(nextLocale)}
+            onClick={() => onChangeLocale(nextLocale)}
+          >
+            <Languages size={17} />
+          </button>
+          <button
+            className="icon-button"
+            aria-label={t("sidebar.addProfile")}
+            onClick={onImport}
+          >
+            <Plus size={18} />
+          </button>
+        </span>
       </div>
       <div className="profile-list">
         {profiles.map((profile) => (
@@ -117,7 +141,7 @@ export function ProfileSidebar({
             <span className="profile-row-main">
               <strong>{profile.displayName}</strong>
               <em className={`state-pill state-${profile.runtimeState}`}>
-                {profile.runtimeState}
+                {t(`state.${profile.runtimeState}`)}
               </em>
             </span>
             <span className="profile-row-meta">
@@ -125,12 +149,17 @@ export function ProfileSidebar({
                 {profile.serverAddr}:{profile.serverPort}
               </small>
               {profile.autoStart ? (
-                <small className="profile-row-auto" title="Starts when FRP Manager opens">
-                  auto
+                <small
+                  className="profile-row-auto"
+                  title={t("sidebar.autoBadgeTitle")}
+                >
+                  {t("sidebar.autoBadge")}
                 </small>
               ) : null}
               <small className="profile-row-count">
-                {formatProxyCount(profile.proxyCount)}
+                {profile.proxyCount === 1
+                  ? t("sidebar.proxyCountOne", { count: profile.proxyCount })
+                  : t("sidebar.proxyCountOther", { count: profile.proxyCount })}
               </small>
             </span>
           </button>
@@ -140,13 +169,15 @@ export function ProfileSidebar({
         <div
           className="profile-context-menu"
           role="menu"
-          aria-label={`${menuProfile.displayName} actions`}
+          aria-label={t("sidebar.menuLabel", {
+            name: menuProfile.displayName,
+          })}
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
           style={{ left: menu.x, top: menu.y }}
         >
           <button type="button" role="menuitem" onClick={editMenuProfile}>
-            Edit
+            {t("common.edit")}
           </button>
           <button
             type="button"
@@ -157,7 +188,7 @@ export function ProfileSidebar({
             <span className="menu-check" aria-hidden="true">
               {menuProfile.autoStart ? "✓" : ""}
             </span>
-            Start on launch
+            {t("sidebar.startOnLaunch")}
           </button>
           <button
             type="button"
@@ -165,18 +196,18 @@ export function ProfileSidebar({
             className="danger-menu-item"
             onClick={deleteMenuProfile}
           >
-            Delete
+            {t("common.delete")}
           </button>
         </div>
       ) : null}
       <div className="sidebar-runtime">
         <div>
-          <span>frpc runtime</span>
+          <span>{t("sidebar.runtime")}</span>
           <strong>{runtimeVersion}</strong>
         </div>
         <button
           className="icon-button"
-          aria-label="Runtime settings"
+          aria-label={t("sidebar.runtimeSettings")}
           onClick={onOpenRuntimeSettings}
         >
           <Settings size={17} />
@@ -185,8 +216,4 @@ export function ProfileSidebar({
       </div>
     </aside>
   );
-}
-
-function formatProxyCount(count: number): string {
-  return `${count} ${count === 1 ? "proxy" : "proxies"}`;
 }

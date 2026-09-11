@@ -1,3 +1,5 @@
+import type { Locale } from "./lib/i18n";
+
 export type RuntimeState =
   | "stopped"
   | "starting"
@@ -113,6 +115,10 @@ export interface AppUpdateCheck {
   downloadUrl: string;
   installerPath: string;
   downloaded: boolean;
+}
+
+export interface AppSettings {
+  locale: Locale;
 }
 
 export interface AppUpdateInstall {

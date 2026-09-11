@@ -215,7 +215,9 @@ impl ProfileStore {
     }
 }
 
-fn atomic_write(path: &Path, contents: &str) -> AppResult<()> {
+/// Write `contents` through a temporary file so a crash cannot leave a
+/// half-written config behind.
+pub(crate) fn atomic_write(path: &Path, contents: &str) -> AppResult<()> {
     let parent = path
         .parent()
         .ok_or_else(|| AppError::Validation(format!("path {} has no parent", path.display())))?;

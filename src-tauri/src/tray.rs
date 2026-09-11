@@ -6,6 +6,7 @@ use crate::app_state::AppState;
 use crate::commands::{list_profiles_with_runtime_state, start_profile_by_id, stop_profile_by_id};
 use crate::models::{Profile, ProfileSummary, ProxyConfig, ProxyType, RuntimeState};
 use crate::profile_store::ProfileStore;
+use crate::settings::Locale;
 
 const TRAY_ID: &str = "frp-manager";
 pub const PROFILE_STATE_CHANGED_EVENT: &str = "profile-state-changed";
@@ -81,12 +82,65 @@ pub fn show_main_window(app: &AppHandle) {
     let _ = app.emit(PROFILE_STATE_CHANGED_EVENT, ());
 }
 
+/// Localized tray labels. `{...}` placeholders are filled by [`fill`].
+struct TrayText {
+    running: &'static str,
+    runtime: &'static str,
+    profiles: &'static str,
+    no_profiles: &'static str,
+    open: &'static str,
+    check_update: &'static str,
+    quit: &'static str,
+    start: &'static str,
+    stop: &'static str,
+    no_proxies: &'static str,
+    unknown: &'static str,
+}
+
+fn tray_text(locale: Locale) -> TrayText {
+    match locale {
+        Locale::ZhCn => TrayText {
+            running: "{count} 个运行中",
+            runtime: "frpc 运行时 {version}",
+            profiles: "配置",
+            no_profiles: "尚未配置任何配置",
+            open: "打开主窗口",
+            check_update: "检查 FRP Manager 更新",
+            quit: "退出 FRP Manager",
+            start: "启动",
+            stop: "停止",
+            no_proxies: "无映射",
+            unknown: "未知",
+        },
+        Locale::En => TrayText {
+            running: "{count} running",
+            runtime: "frpc runtime {version}",
+            profiles: "Profiles",
+            no_profiles: "No profiles configured",
+            open: "Open Main Window",
+            check_update: "Check FRP Manager Update",
+            quit: "Quit FRP Manager",
+            start: "Start",
+            stop: "Stop",
+            no_proxies: "No proxies",
+            unknown: "unknown",
+        },
+    }
+}
+
+fn fill(template: &str, pairs: &[(&str, String)]) -> String {
+    pairs.iter().fold(template.to_string(), |text, (key, value)| {
+        text.replace(&format!("{{{key}}}"), value)
+    })
+}
+
 fn build_menu(app: &AppHandle, profiles: Vec<TrayProfile>) -> tauri::Result<Menu<tauri::Wry>> {
     let state = app.state::<AppState>().inner().clone();
+    let text = tray_text(state.locale());
     let runtime_version = state
         .runtime_manager()
         .current_runtime_version()
-        .unwrap_or_else(|_| "unknown".to_string());
+        .unwrap_or_else(|_| text.unknown.to_string());
     let running_count = profiles
         .iter()
         .filter(|profile| profile.summary.runtime_state == RuntimeState::Running)
@@ -97,19 +151,22 @@ fn build_menu(app: &AppHandle, profiles: Vec<TrayProfile>) -> tauri::Result<Menu
         &menu,
         app,
         "tray-header",
-        &format!("FRP Manager    {running_count} running"),
+        &format!(
+            "FRP Manager    {}",
+            fill(text.running, &[("count", running_count.to_string())])
+        ),
     )?;
     append_disabled_text(
         &menu,
         app,
         "tray-runtime",
-        &format!("frpc runtime {runtime_version}"),
+        &fill(text.runtime, &[("version", runtime_version)]),
     )?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
 
-    append_disabled_text(&menu, app, "tray-profiles-label", "Profiles")?;
+    append_disabled_text(&menu, app, "tray-profiles-label", text.profiles)?;
     if profiles.is_empty() {
-        append_disabled_text(&menu, app, "tray-empty-profiles", "No profiles configured")?;
+        append_disabled_text(&menu, app, "tray-empty-profiles", text.no_profiles)?;
     } else {
         for profile in profiles {
             let submenu = build_profile_menu(app, &profile)?;
@@ -121,14 +178,14 @@ fn build_menu(app: &AppHandle, profiles: Vec<TrayProfile>) -> tauri::Result<Menu
     menu.append(&MenuItem::with_id(
         app,
         "open",
-        "Open Main Window",
+        text.open,
         true,
         Some("CmdOrCtrl+O"),
     )?)?;
     menu.append(&MenuItem::with_id(
         app,
         "check_update",
-        "Check FRP Manager Update",
+        text.check_update,
         true,
         None::<&str>,
     )?)?;
@@ -136,7 +193,7 @@ fn build_menu(app: &AppHandle, profiles: Vec<TrayProfile>) -> tauri::Result<Menu
     menu.append(&MenuItem::with_id(
         app,
         "quit",
-        "Quit FRP Manager",
+        text.quit,
         true,
         Some("CmdOrCtrl+Q"),
     )?)?;
@@ -148,8 +205,11 @@ fn build_profile_menu(
     app: &AppHandle,
     tray_profile: &TrayProfile,
 ) -> tauri::Result<Submenu<tauri::Wry>> {
+    let state = app.state::<AppState>().inner().clone();
+    let locale = state.locale();
+    let text = tray_text(locale);
     let summary = &tray_profile.summary;
-    let state_label = runtime_state_label(&summary.runtime_state);
+    let state_label = state_label(locale, &summary.runtime_state);
     let submenu = Submenu::with_id(
         app,
         format!("profile:{}", encode_menu_id_segment(&summary.id)),
@@ -169,7 +229,7 @@ fn build_profile_menu(
         submenu.append(&MenuItem::with_id(
             app,
             format!("stop-profile:{}", encode_menu_id_segment(&summary.id)),
-            "Stop",
+            text.stop,
             true,
             None::<&str>,
         )?)?;
@@ -177,7 +237,7 @@ fn build_profile_menu(
         submenu.append(&MenuItem::with_id(
             app,
             format!("start-profile:{}", encode_menu_id_segment(&summary.id)),
-            "Start",
+            text.start,
             true,
             None::<&str>,
         )?)?;
@@ -188,7 +248,7 @@ fn build_profile_menu(
         submenu.append(&MenuItem::with_id(
             app,
             format!("empty-proxies:{}", encode_menu_id_segment(&summary.id)),
-            "No proxies",
+            text.no_proxies,
             false,
             None::<&str>,
         )?)?;
@@ -348,14 +408,20 @@ fn decode_menu_id_segment(segment: &str) -> Option<String> {
     Some(decoded)
 }
 
-fn runtime_state_label(state: &RuntimeState) -> &'static str {
-    match state {
-        RuntimeState::Stopped => "stopped",
-        RuntimeState::Starting => "starting",
-        RuntimeState::Running => "running",
-        RuntimeState::Reloading => "reloading",
-        RuntimeState::Degraded => "degraded",
-        RuntimeState::Failed => "failed",
+fn state_label(locale: Locale, state: &RuntimeState) -> &'static str {
+    match (locale, state) {
+        (Locale::ZhCn, RuntimeState::Stopped) => "已停止",
+        (Locale::ZhCn, RuntimeState::Starting) => "启动中",
+        (Locale::ZhCn, RuntimeState::Running) => "运行中",
+        (Locale::ZhCn, RuntimeState::Reloading) => "重载中",
+        (Locale::ZhCn, RuntimeState::Degraded) => "降级",
+        (Locale::ZhCn, RuntimeState::Failed) => "失败",
+        (Locale::En, RuntimeState::Stopped) => "stopped",
+        (Locale::En, RuntimeState::Starting) => "starting",
+        (Locale::En, RuntimeState::Running) => "running",
+        (Locale::En, RuntimeState::Reloading) => "reloading",
+        (Locale::En, RuntimeState::Degraded) => "degraded",
+        (Locale::En, RuntimeState::Failed) => "failed",
     }
 }
 
@@ -406,5 +472,56 @@ mod tests {
                 false
             ))
         );
+    }
+
+    #[test]
+    fn fill_substitutes_every_placeholder() {
+        assert_eq!(
+            fill(
+                "{count} running · {version}",
+                &[("count", "2".to_string()), ("version", "0.69.1".to_string())]
+            ),
+            "2 running · 0.69.1"
+        );
+    }
+
+    #[test]
+    fn fill_leaves_unknown_placeholders_alone() {
+        assert_eq!(fill("{missing}", &[("count", "1".to_string())]), "{missing}");
+    }
+
+    #[test]
+    fn state_labels_are_translated_per_locale() {
+        assert_eq!(state_label(Locale::En, &RuntimeState::Running), "running");
+        assert_eq!(state_label(Locale::ZhCn, &RuntimeState::Running), "运行中");
+        assert_eq!(state_label(Locale::En, &RuntimeState::Stopped), "stopped");
+        assert_eq!(state_label(Locale::ZhCn, &RuntimeState::Stopped), "已停止");
+    }
+
+    #[test]
+    fn every_runtime_state_has_a_label_in_both_locales() {
+        for state in [
+            RuntimeState::Stopped,
+            RuntimeState::Starting,
+            RuntimeState::Running,
+            RuntimeState::Reloading,
+            RuntimeState::Degraded,
+            RuntimeState::Failed,
+        ] {
+            for locale in [Locale::En, Locale::ZhCn] {
+                assert!(!state_label(locale, &state).is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn tray_text_differs_between_locales() {
+        let en = tray_text(Locale::En);
+        let zh = tray_text(Locale::ZhCn);
+
+        assert_eq!(en.profiles, "Profiles");
+        assert_eq!(zh.profiles, "配置");
+        assert_ne!(en.running, zh.running);
+        assert_ne!(en.quit, zh.quit);
     }
 }
